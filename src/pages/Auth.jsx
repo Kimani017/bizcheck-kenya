@@ -34,10 +34,11 @@ export default function Auth({ onAuthed }) {
       setLoading(false)
 
       if (signupError) {
-        setError(signupError.message)
-        return
-      }
+  setError(signupError.message || 'Something went wrong. Please try again.')
+  return
+}
 
+setMessage('✓ Account created! Please check your email inbox (and spam folder) for a confirmation link before logging in.')
       // Update profile with name/phone (the DB trigger creates the row, this fills in extra fields)
       if (data.user) {
         await supabase.from('profiles').update({ name, phone }).eq('id', data.user.id)
