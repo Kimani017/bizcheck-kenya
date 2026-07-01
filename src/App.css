@@ -125,3 +125,61 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
   .hero h1 { font-size: 22px; }
   .search-wrap { flex-direction: column; }
 }
+
+/* ============================================================
+   LANDING PAGE
+   ============================================================ */
+.landing { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+.landing-hero { background: linear-gradient(135deg, #052E1C 0%, #085041 60%, #0A6B55 100%); padding: 80px 24px 64px; text-align: center; }
+.landing-badge { display: inline-block; background: rgba(255,255,255,0.15); color: #9FE1CB; font-size: 13px; font-weight: 600; padding: 6px 16px; border-radius: 20px; margin-bottom: 24px; border: 1px solid rgba(255,255,255,0.2); }
+.landing-title { color: #fff; font-size: 42px; font-weight: 700; line-height: 1.2; margin-bottom: 16px; }
+.landing-sub { color: #9FE1CB; font-size: 17px; max-width: 540px; margin: 0 auto 32px; line-height: 1.7; }
+.landing-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.landing-btn-primary { padding: 14px 32px; background: #1D9E75; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 20px rgba(29,158,117,0.4); transition: all 0.2s; }
+.landing-btn-primary:hover { background: #15875F; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(29,158,117,0.5); }
+.landing-btn-secondary { padding: 14px 32px; background: transparent; color: #fff; border: 2px solid rgba(255,255,255,0.4); border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.landing-btn-secondary:hover { background: rgba(255,255,255,0.1); border-color: #fff; }
+.landing-note { color: #5DCAA5; font-size: 12px; margin-top: 16px; }
+
+.landing-stats { display: flex; justify-content: center; gap: 0; background: #fff; border-bottom: 1px solid #E5E3DC; flex-wrap: wrap; }
+.landing-stat { flex: 1; min-width: 140px; padding: 24px 16px; text-align: center; border-right: 1px solid #E5E3DC; }
+.landing-stat:last-child { border-right: none; }
+.landing-stat-num { font-size: 26px; font-weight: 700; color: #1D9E75; }
+.landing-stat-label { font-size: 12px; color: #888780; margin-top: 4px; }
+
+.landing-section { padding: 60px 24px; max-width: 960px; margin: 0 auto; }
+.landing-section-green { background: #085041; max-width: 100%; padding: 60px 24px; }
+.landing-section-title { font-size: 28px; font-weight: 700; color: #085041; text-align: center; margin-bottom: 40px; }
+
+.landing-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
+.landing-step { text-align: center; padding: 24px; }
+.step-num { width: 48px; height: 48px; border-radius: 50%; background: #E1F5EE; color: #085041; font-size: 20px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+.landing-step h3 { font-size: 16px; font-weight: 600; color: #085041; margin-bottom: 8px; }
+.landing-step p { font-size: 14px; color: #5F5E5A; line-height: 1.6; }
+
+.landing-platforms { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+.platform-badge { background: rgba(255,255,255,0.15); color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 14px; font-weight: 500; border: 1px solid rgba(255,255,255,0.2); }
+
+.landing-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+.landing-feature { background: #fff; border: 1px solid #E5E3DC; border-radius: 12px; padding: 24px; }
+.feature-icon { font-size: 28px; margin-bottom: 12px; }
+.landing-feature h3 { font-size: 15px; font-weight: 600; color: #085041; margin-bottom: 8px; }
+.landing-feature p { font-size: 13px; color: #5F5E5A; line-height: 1.6; }
+
+.landing-cta { background: linear-gradient(135deg, #E1F5EE, #f0faf6); padding: 64px 24px; text-align: center; }
+.landing-cta h2 { font-size: 28px; font-weight: 700; color: #085041; margin-bottom: 10px; }
+.landing-cta p { color: #0F6E56; font-size: 16px; margin-bottom: 28px; }
+
+.landing-footer { padding: 24px; text-align: center; border-top: 1px solid #E5E3DC; background: #fff; }
+.logo-footer { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 15px; color: #085041; margin-bottom: 6px; }
+.landing-footer p { font-size: 12px; color: #888780; }
+
+@media (max-width: 600px) {
+  .landing-title { font-size: 28px; }
+  .landing-sub { font-size: 15px; }
+  .landing-hero { padding: 52px 16px 48px; }
+  .landing-stat { min-width: 120px; }
+  .landing-section { padding: 40px 16px; }
+  .landing-section-title { font-size: 22px; }
+}

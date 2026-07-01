@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
+import Landing from './pages/Landing'
 import Home from './pages/Home'
 import Directory from './pages/Directory'
 import ReportForm from './pages/ReportForm'
@@ -56,18 +57,50 @@ function App() {
   }
 
   function goToSubmit() {
-    if (!user) {
-      goToAuth('signup')
-      return
-    }
+    if (!user) { goToAuth('signup'); return }
     setPage('submit')
   }
 
   async function handleLogout() {
     await supabase.auth.signOut()
+    setUser(null)
+    setIsAdmin(false)
     setPage('home')
   }
 
+  // Show loading until we know if user is logged in
+  if (checkingAuth) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <div style={{ color: '#1D9E75', fontSize: 16 }}>Loading…</div>
+      </div>
+    )
+  }
+
+  // Not logged in — show landing page or auth page
+  if (!user) {
+    return (
+      <div className="app">
+        <nav className="navbar">
+          <div className="logo" onClick={() => setPage('home')}>
+            <span className="logo-dot"></span> BizCheck Kenya
+          </div>
+          <div className="nav-links">
+            <button className={page === 'auth' && authMode === 'login' ? 'active' : ''} onClick={() => goToAuth('login')}>Log in</button>
+            <button className="btn-signup" onClick={() => goToAuth('signup')}>Sign up</button>
+          </div>
+        </nav>
+
+        {page === 'auth' ? (
+          <Auth onAuthed={() => { setPage('home') }} initialMode={authMode} />
+        ) : (
+          <Landing goToAuth={goToAuth} />
+        )}
+      </div>
+    )
+  }
+
+  // Logged in — show the full app
   return (
     <div className="app">
       <nav className="navbar">
@@ -81,23 +114,13 @@ function App() {
           {isAdmin && (
             <button className={page === 'admin' ? 'active' : ''} onClick={() => setPage('admin')}>Admin</button>
           )}
-          {!checkingAuth && (
-            user ? (
-              <button onClick={handleLogout}>Log out</button>
-            ) : (
-              <>
-                <button className={page === 'auth' && authMode === 'login' ? 'active' : ''} onClick={() => goToAuth('login')}>Log in</button>
-                <button className="btn-signup" onClick={() => goToAuth('signup')}>Sign up</button>
-              </>
-            )
-          )}
+          <button onClick={handleLogout}>Log out</button>
         </div>
       </nav>
 
-      {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} goToAuth={goToAuth} user={user} />}
+      {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
       {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} />}
       {page === 'report' && <ReportForm onDone={() => setPage('home')} prefill={reportPrefill} />}
-      {page === 'auth' && <Auth onAuthed={() => setPage('home')} initialMode={authMode} />}
       {page === 'submit' && <SubmitBusiness onDone={() => setPage('directory')} />}
       {page === 'admin' && <AdminDashboard />}
       {page === 'detail' && selectedBusiness && (

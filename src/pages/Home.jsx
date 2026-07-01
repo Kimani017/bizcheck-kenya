@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function Home({ onSelectBusiness, goToReport, goToAuth, user }) {
+export default function Home({ onSelectBusiness, goToReport }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState(null)
   const [recent, setRecent] = useState([])
@@ -58,21 +58,6 @@ export default function Home({ onSelectBusiness, goToReport, goToAuth, user }) {
           />
           <button onClick={handleSearch}>{loading ? 'Searching…' : 'Check'}</button>
         </div>
-
-        {/* Auth CTAs — only show when not logged in */}
-        {!user && (
-          <div className="hero-auth">
-            <p className="hero-auth-text">Join thousands of Kenyans staying safe online</p>
-            <div className="hero-auth-btns">
-              <button className="hero-btn-signup" onClick={() => goToAuth('signup')}>
-                Create free account
-              </button>
-              <button className="hero-btn-login" onClick={() => goToAuth('login')}>
-                Log in
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Stats */}
         <div className="hero-stats">
