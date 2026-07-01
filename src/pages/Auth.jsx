@@ -10,6 +10,7 @@ export default function Auth({ onAuthed }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   function reset() {
     setError('')
@@ -137,15 +138,20 @@ export default function Auth({ onAuthed }) {
       </div>
 
       <div className="form-group">
-        <label>Password</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="At least 6 characters"
-          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-        />
-      </div>
+  <label>Password</label>
+  <div className="input-wrap">
+    <input
+      type={showPassword ? 'text' : 'password'}
+      value={password}
+      onChange={(e) => setPassword(e.target.value)}
+      placeholder="At least 6 characters"
+      onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+    />
+    <button className="toggle-pw" onClick={() => setShowPassword(!showPassword)}>
+      {showPassword ? 'Hide' : 'Show'}
+    </button>
+  </div>
+</div>
 
       <button className="btn-primary" onClick={handleSubmit} disabled={loading}>
         {loading ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Sign up'}
