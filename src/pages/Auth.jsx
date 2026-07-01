@@ -175,12 +175,12 @@ export default function Auth({ onAuthed }) {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder=" Iyra Kym"
+              placeholder=" Iyra Kym "
               onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
             />
           </div>
           <div className="form-group">
-            <label>Phone number (optional)</label>
+            <label>Phone number </label>
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -192,7 +192,7 @@ export default function Auth({ onAuthed }) {
       )}
 
       <div className="form-group">
-        <label>Email address</label>
+        <label>Email address(optional)</label>
         <input
           type="email"
           value={email}
