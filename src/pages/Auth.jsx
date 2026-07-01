@@ -111,7 +111,7 @@ export default function Auth({ onAuthed }) {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Jane Wanjiru"
+              placeholder="Irya Kym"
             />
           </div>
           <div className="form-group">
@@ -119,7 +119,7 @@ export default function Auth({ onAuthed }) {
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="0712 345 678"
+              placeholder="0726 **** ***"
             />
           </div>
         </>
