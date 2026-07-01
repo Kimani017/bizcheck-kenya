@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function Home({ onSelectBusiness, goToReport }) {
+export default function Home({ onSelectBusiness, goToReport, goToAuth, user }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState(null)
   const [recent, setRecent] = useState([])
@@ -36,19 +36,18 @@ export default function Home({ onSelectBusiness, goToReport }) {
     setLoading(true)
     const { data, error } = await supabase.rpc('search_businesses', { query })
     setLoading(false)
-    if (error) {
-      console.error(error)
-      setResults([])
-      return
-    }
+    if (error) { console.error(error); setResults([]); return }
     setResults(data || [])
   }
 
   return (
     <div>
+      {/* HERO */}
       <div className="hero">
+        <div className="hero-badge">🇰🇪 Trusted by Kenyans</div>
         <h1>Is this seller legit?</h1>
         <p>Search any business, phone number, M-Pesa till, or social handle before you buy.</p>
+
         <div className="search-wrap">
           <input
             type="text"
@@ -59,8 +58,32 @@ export default function Home({ onSelectBusiness, goToReport }) {
           />
           <button onClick={handleSearch}>{loading ? 'Searching…' : 'Check'}</button>
         </div>
+
+        {/* Auth CTAs — only show when not logged in */}
+        {!user && (
+          <div className="hero-auth">
+            <p className="hero-auth-text">Join thousands of Kenyans staying safe online</p>
+            <div className="hero-auth-btns">
+              <button className="hero-btn-signup" onClick={() => goToAuth('signup')}>
+                Create free account
+              </button>
+              <button className="hero-btn-login" onClick={() => goToAuth('login')}>
+                Log in
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Stats */}
+        <div className="hero-stats">
+          <div className="hero-stat"><span className="hero-stat-num">1,842</span><span className="hero-stat-label">Verified businesses</span></div>
+          <div className="hero-stat"><span className="hero-stat-num">376</span><span className="hero-stat-label">Scammers flagged</span></div>
+          <div className="hero-stat"><span className="hero-stat-num">12,400+</span><span className="hero-stat-label">Community reports</span></div>
+          <div className="hero-stat"><span className="hero-stat-num">Ksh 4.2M</span><span className="hero-stat-label">Fraud prevented</span></div>
+        </div>
       </div>
 
+      {/* SEARCH RESULTS */}
       {results !== null && (
         <div className="section">
           <h2>Search results ({results.length})</h2>
@@ -79,6 +102,7 @@ export default function Home({ onSelectBusiness, goToReport }) {
         </div>
       )}
 
+      {/* RECENTLY VERIFIED */}
       <div className="section">
         <h2>Recently verified</h2>
         <div className="biz-grid">
@@ -89,6 +113,7 @@ export default function Home({ onSelectBusiness, goToReport }) {
         </div>
       </div>
 
+      {/* RECENTLY FLAGGED */}
       <div className="section">
         <h2>⚠ Recently reported</h2>
         <div className="biz-grid">

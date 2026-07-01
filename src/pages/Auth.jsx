@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../supabase'
 
-export default function Auth({ onAuthed }) {
-  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'forgot'
+export default function Auth({ onAuthed, initialMode }) {
+  const [mode, setMode] = useState(initialMode || 'login') // 'login' | 'signup' | 'forgot'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -175,12 +175,12 @@ export default function Auth({ onAuthed }) {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder=" Iyra Kym "
+              placeholder="Jane Wanjiru"
               onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
             />
           </div>
           <div className="form-group">
-            <label>Phone number </label>
+            <label>Phone number (optional)</label>
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
