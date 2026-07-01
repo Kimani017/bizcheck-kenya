@@ -183,3 +183,20 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
   .landing-section { padding: 40px 16px; }
   .landing-section-title { font-size: 22px; }
 }
+
+/* ============================================================
+   PROFILES & REVIEWS
+   ============================================================ */
+.profile-ratings-bar { display: flex; align-items: center; gap: 24px; background: #fff; border: 1px solid #E5E3DC; border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; flex-wrap: wrap; }
+.review-write-box { background: #F9F8F5; border: 1px solid #E5E3DC; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+.review-card { background: #fff; border: 1px solid #E5E3DC; border-radius: 10px; padding: 14px 16px; }
+.review-avatar { width: 38px; height: 38px; border-radius: 50%; background: #E1F5EE; color: #085041; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0; }
+.dashboard-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.dashboard-stat { background: #fff; border: 1px solid #E5E3DC; border-radius: 10px; padding: 14px 10px; text-align: center; }
+.dashboard-stat-num { font-size: 22px; font-weight: 700; color: #085041; }
+.dashboard-stat-label { font-size: 11px; color: #888780; margin-top: 3px; }
+
+@media (max-width: 600px) {
+  .profile-ratings-bar { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .dashboard-stats { grid-template-columns: repeat(3, 1fr); }
+}
