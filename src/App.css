@@ -8,7 +8,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .nav-links { display: flex; gap: 4px; }
 .nav-links button { padding: 6px 14px; border-radius: 8px; font-size: 14px; cursor: pointer; color: #5F5E5A; border: none; background: none; }
 .nav-links button:hover { background: #F1EFE8; color: #2C2C2A; }
-.nav-links button.active { color: #0F6E56; font-weight: 600; background: #e1f4f5; }
+.nav-links button.active { color: #0F6E56; font-weight: 600; background: #E1F5EE; }
 
 .hero { background: linear-gradient(135deg, #E1F5EE 0%, #f0faf6 60%, #E6F1FB 100%); padding: 52px 24px 44px; text-align: center; }
 .hero h1 { color: #085041; margin-bottom: 10px; font-size: 28px; }
@@ -23,15 +23,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .section h2 { margin-bottom: 16px; font-size: 18px; }
 .section-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .section-header-row h2 { margin-bottom: 0; }
-.btn-small { padding: 8px 16px; background: #1D9E75; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 600; }
-.btn-small:hover { background: #0F6E56; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.form-group select { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #E5E3DC; font-size: 14px; font-family: inherit; background: #fff; }
-.admin-list { display: flex; flex-direction: column; gap: 10px; }
-.admin-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: #fff; border: 1px solid #E5E3DC; border-radius: 10px; padding: 14px 16px; }
-.admin-actions { display: flex; gap: 8px; flex-shrink: 0; }
-.btn-ghost-small { padding: 8px 16px; background: none; border: 1px solid #E5E3DC; border-radius: 8px; font-size: 13px; cursor: pointer; color: #5F5E5A; }
-.btn-ghost-small:hover { background: #F1EFE8; }
 .muted { color: #888780; font-size: 14px; }
 
 .filter-row { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
@@ -64,8 +55,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 
 .form-group { margin-bottom: 16px; }
 .form-group label { font-size: 13px; color: #5F5E5A; margin-bottom: 6px; display: block; font-weight: 500; }
-.form-group input, .form-group textarea { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #E5E3DC; font-size: 14px; font-family: inherit; }
-.form-group input:focus, .form-group textarea:focus { outline: none; border-color: #1D9E75; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #E5E3DC; font-size: 14px; font-family: inherit; background: #fff; color: #2C2C2A; }
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: #1D9E75; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .radio-group { display: flex; flex-direction: column; gap: 8px; }
 .radio-opt { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; padding: 8px 12px; border-radius: 8px; border: 1px solid #E5E3DC; }
 .radio-opt:hover { background: #F1EFE8; }
@@ -73,8 +65,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .btn-primary { width: 100%; padding: 12px; background: #1D9E75; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: 600; }
 .btn-primary:hover { background: #0F6E56; }
 .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+.btn-small { padding: 8px 16px; background: #1D9E75; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 600; }
+.btn-small:hover { background: #0F6E56; }
+.btn-ghost-small { padding: 8px 16px; background: none; border: 1px solid #E5E3DC; border-radius: 8px; font-size: 13px; cursor: pointer; color: #5F5E5A; }
+.btn-ghost-small:hover { background: #F1EFE8; }
 
 .form-error { background: #A32D2D; color: #ffffff; padding: 12px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; margin-bottom: 16px; border-left: 4px solid #7a1f1f; }
+.vote-msg { background: #085041; color: #ffffff; padding: 12px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; margin-bottom: 12px; border-left: 4px solid #1D9E75; }
+
+.input-wrap { position: relative; display: flex; align-items: center; }
+.input-wrap input { flex: 1; padding-right: 60px; }
+.toggle-pw { position: absolute; right: 12px; background: none; border: none; color: #1D9E75; font-size: 13px; font-weight: 600; cursor: pointer; }
+.toggle-pw:hover { color: #085041; }
+
 .detail-top { margin-bottom: 16px; }
 .banner { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; }
 .banner-ok { background: #E1F5EE; border: 1px solid #9FE1CB; }
@@ -89,13 +92,22 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
 .detail-row:last-child { border-bottom: none; }
 .detail-row span:first-child { color: #888780; }
 
-.vote-msg { background: #F1EFE8; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
 .votes-row { display: flex; gap: 10px; margin-bottom: 16px; }
 .vote-btn { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #E5E3DC; cursor: pointer; font-size: 14px; background: #fff; }
 .vote-btn:hover { background: #F1EFE8; }
 .report-link { color: #E24B4A; }
 
-.input-wrap { position: relative; display: flex; align-items: center; }
-.input-wrap input { flex: 1; padding-right: 60px; }
-.toggle-pw { position: absolute; right: 12px; background: none; border: none; color: #1D9E75; font-size: 13px; font-weight: 600; cursor: pointer; }
-.toggle-pw:hover { color: #085041; }
+.admin-list { display: flex; flex-direction: column; gap: 10px; }
+.admin-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: #fff; border: 1px solid #E5E3DC; border-radius: 10px; padding: 14px 16px; }
+.admin-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+@media (max-width: 600px) {
+  .navbar { flex-direction: column; gap: 10px; padding: 12px 16px; }
+  .nav-links { flex-wrap: wrap; justify-content: center; }
+  .biz-grid { grid-template-columns: 1fr; }
+  .form-row { grid-template-columns: 1fr; }
+  .admin-row { flex-direction: column; align-items: flex-start; }
+  .hero { padding: 32px 16px 28px; }
+  .hero h1 { font-size: 22px; }
+  .search-wrap { flex-direction: column; }
+}
