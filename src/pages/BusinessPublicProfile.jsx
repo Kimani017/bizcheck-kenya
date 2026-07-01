@@ -42,7 +42,7 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
   async function loadReviews() {
     const { data } = await supabase
       .from('reviews')
-      .select('*, profiles(name)')
+      .select('*, profiles(name, username)')
       .eq('business_id', biz.id)
       .order('created_at', { ascending: false })
     setReviews(data || [])
@@ -200,9 +200,9 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
               <div key={r.id} className="review-card">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div className="review-avatar">{(r.profiles?.name || 'U')[0].toUpperCase()}</div>
+                    <div className="review-avatar">{(r.profiles?.username || r.profiles?.name || 'U')[0].toUpperCase()}</div>
                     <div>
-                      <div style={{ fontWeight: 500, fontSize: 14 }}>{r.profiles?.name || 'Anonymous'}</div>
+                      <div style={{ fontWeight: 500, fontSize: 14 }}>{@${r.profiles?.username || r.profiles?.name || 'anonymous'}}</div>
                       <div className="muted" style={{ fontSize: 12 }}>{new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                     </div>
                   </div>
