@@ -175,7 +175,7 @@ export default function Auth({ onAuthed }) {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Jane Wanjiru"
+              placeholder=" Iyra Kym"
               onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
             />
           </div>
