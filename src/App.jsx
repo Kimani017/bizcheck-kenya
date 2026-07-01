@@ -13,6 +13,7 @@ function App() {
   const [page, setPage] = useState('home')
   const [selectedBusiness, setSelectedBusiness] = useState(null)
   const [reportPrefill, setReportPrefill] = useState(null)
+  const [authMode, setAuthMode] = useState('login')
   const [user, setUser] = useState(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
@@ -44,17 +45,19 @@ function App() {
     setPage('detail')
   }
 
-  // Called from BusinessDetail with the business object
-  // or from navbar/home with no business (blank form)
   function goToReport(business = null) {
     setReportPrefill(business)
     setPage('report')
   }
 
+  function goToAuth(mode = 'login') {
+    setAuthMode(mode)
+    setPage('auth')
+  }
+
   function goToSubmit() {
     if (!user) {
-      alert('Please log in first to list a business.')
-      setPage('auth')
+      goToAuth('signup')
       return
     }
     setPage('submit')
@@ -82,16 +85,19 @@ function App() {
             user ? (
               <button onClick={handleLogout}>Log out</button>
             ) : (
-              <button className={page === 'auth' ? 'active' : ''} onClick={() => setPage('auth')}>Log in</button>
+              <>
+                <button className={page === 'auth' && authMode === 'login' ? 'active' : ''} onClick={() => goToAuth('login')}>Log in</button>
+                <button className="btn-signup" onClick={() => goToAuth('signup')}>Sign up</button>
+              </>
             )
           )}
         </div>
       </nav>
 
-      {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
+      {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} goToAuth={goToAuth} user={user} />}
       {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} />}
       {page === 'report' && <ReportForm onDone={() => setPage('home')} prefill={reportPrefill} />}
-      {page === 'auth' && <Auth onAuthed={() => setPage('home')} />}
+      {page === 'auth' && <Auth onAuthed={() => setPage('home')} initialMode={authMode} />}
       {page === 'submit' && <SubmitBusiness onDone={() => setPage('directory')} />}
       {page === 'admin' && <AdminDashboard />}
       {page === 'detail' && selectedBusiness && (
