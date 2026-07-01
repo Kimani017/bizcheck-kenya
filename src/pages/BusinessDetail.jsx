@@ -33,7 +33,6 @@ export default function BusinessDetail({ business, onBack, onReport }) {
       return
     }
 
-    // Re-fetch the business to get the updated trust score
     const { data: updated } = await supabase.from('businesses').select('*').eq('id', biz.id).single()
     if (updated) setBiz(updated)
     setVoteMsg(voteType === 'legit' ? '✓ Marked as legit — thank you!' : '⚠ Scam report noted — asante!')
@@ -44,20 +43,18 @@ export default function BusinessDetail({ business, onBack, onReport }) {
       <button className="link-btn" onClick={onBack}>← Back</button>
 
       <div className="detail-top">
-        <div>
-          <h2>{biz.name}</h2>
-          <div className="biz-cat">{biz.category}</div>
-        </div>
+        <h2>{biz.name}</h2>
+        <div className="biz-cat">{biz.category}</div>
       </div>
 
       {biz.status === 'verified' ? (
         <div className="banner banner-ok">
-          <strong>Verified business</strong>
+          <strong>✓ Verified business</strong>
           <p>Reviewed by BizCheck admin and community</p>
         </div>
       ) : (
         <div className="banner banner-warn">
-          <strong>Flagged — exercise caution</strong>
+          <strong>⚠ Flagged — exercise caution</strong>
           <p>Multiple community reports against this seller</p>
         </div>
       )}
@@ -87,7 +84,10 @@ export default function BusinessDetail({ business, onBack, onReport }) {
         </button>
       </div>
 
-      <button className="link-btn report-link" onClick={onReport}>🚩 Report this seller</button>
+      {/* Pass the full business object so ReportForm can pre-fill */}
+      <button className="link-btn report-link" onClick={() => onReport(biz)}>
+        🚩 Report this seller
+      </button>
     </div>
   )
 }

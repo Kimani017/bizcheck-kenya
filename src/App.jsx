@@ -12,19 +12,18 @@ import './App.css'
 function App() {
   const [page, setPage] = useState('home')
   const [selectedBusiness, setSelectedBusiness] = useState(null)
+  const [reportPrefill, setReportPrefill] = useState(null)
   const [user, setUser] = useState(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
 
   useEffect(() => {
     init()
-
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null)
       if (session?.user) checkAdmin(session.user.id)
       else setIsAdmin(false)
     })
-
     return () => listener.subscription.unsubscribe()
   }, [])
 
@@ -43,6 +42,13 @@ function App() {
   const openBusiness = (business) => {
     setSelectedBusiness(business)
     setPage('detail')
+  }
+
+  // Called from BusinessDetail with the business object
+  // or from navbar/home with no business (blank form)
+  function goToReport(business = null) {
+    setReportPrefill(business)
+    setPage('report')
   }
 
   function goToSubmit() {
@@ -68,7 +74,7 @@ function App() {
         <div className="nav-links">
           <button className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}>Home</button>
           <button className={page === 'directory' ? 'active' : ''} onClick={() => setPage('directory')}>Trusted Sellers</button>
-          <button className={page === 'report' ? 'active' : ''} onClick={() => setPage('report')}>Report a Scammer</button>
+          <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>Report a Scammer</button>
           {isAdmin && (
             <button className={page === 'admin' ? 'active' : ''} onClick={() => setPage('admin')}>Admin</button>
           )}
@@ -82,9 +88,9 @@ function App() {
         </div>
       </nav>
 
-      {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => setPage('report')} />}
+      {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
       {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} />}
-      {page === 'report' && <ReportForm onDone={() => setPage('home')} />}
+      {page === 'report' && <ReportForm onDone={() => setPage('home')} prefill={reportPrefill} />}
       {page === 'auth' && <Auth onAuthed={() => setPage('home')} />}
       {page === 'submit' && <SubmitBusiness onDone={() => setPage('directory')} />}
       {page === 'admin' && <AdminDashboard />}
@@ -92,7 +98,7 @@ function App() {
         <BusinessDetail
           business={selectedBusiness}
           onBack={() => setPage('home')}
-          onReport={() => setPage('report')}
+          onReport={goToReport}
         />
       )}
     </div>
