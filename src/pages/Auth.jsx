@@ -192,7 +192,7 @@ export default function Auth({ onAuthed }) {
       )}
 
       <div className="form-group">
-        <label>Email address(optional)</label>
+        <label>Email address</label>
         <input
           type="email"
           value={email}
