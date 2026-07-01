@@ -2,108 +2,171 @@ import { useState } from 'react'
 import { supabase } from '../supabase'
 
 export default function Auth({ onAuthed }) {
-  const [mode, setMode] = useState('login') // 'login' | 'signup'
+  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'forgot'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
 
   function reset() {
     setError('')
     setMessage('')
   }
 
-  async function handleSubmit() {
+  function switchMode(newMode) {
+    setMode(newMode)
+    setEmail('')
+    setPassword('')
+    setConfirmPassword('')
+    setName('')
+    setPhone('')
     reset()
+  }
 
-    if (!email.trim() || !password.trim()) {
-      setError('Please enter your email and password.')
-      return
-    }
+  function getErrorMessage(err) {
+    if (!err) return 'Something went wrong. Please try again.'
+    const msg = typeof err.message === 'string' ? err.message.toLowerCase() : ''
+    if (msg.includes('email not confirmed')) return 'Please confirm your email first — check your inbox for the confirmation link we sent you.'
+    if (msg.includes('invalid login') || msg.includes('invalid email or password')) return 'Incorrect email or password. Please try again.'
+    if (msg.includes('user already registered') || msg.includes('already been registered')) return 'This email is already registered. Please log in instead.'
+    if (msg.includes('password should be')) return 'Password must be at least 6 characters.'
+    if (msg.includes('rate limit') || msg.includes('email rate')) return 'Too many attempts. Please wait a few minutes and try again.'
+    if (msg.includes('unable to validate') || msg.includes('smtp') || msg.includes('email') || err.status === 500) return 'We could not send a confirmation email right now. Please try again in a moment.'
+    if (typeof err.message === 'string') return err.message
+    return 'Something went wrong. Please try again.'
+  }
 
-    if (mode === 'signup' && password.length < 6) {
-      setError('Password must be at least 6 characters.')
-      return
-    }
+  async function handleSignup() {
+    if (!name.trim()) { setError('Please enter your full name.'); return }
+    if (!email.trim()) { setError('Please enter your email address.'); return }
+    if (!password) { setError('Please enter a password.'); return }
+    if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
+    if (password !== confirmPassword) { setError('Passwords do not match. Please try again.'); return }
 
     setLoading(true)
+    reset()
 
-    if (mode === 'signup') {
-      const { data, error: signupError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { phone, name },
-        },
-      })
+    const { data, error: signupError } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: { name, phone } },
+    })
 
-      setLoading(false)
+    setLoading(false)
 
-      if (signupError) {
-        setError(signupError.message || 'Something went wrong. Please try again.')
-        return
-      }
-
-      // Email confirmation ON — session is null, user needs to confirm
-      if (data?.user && !data.session) {
-        setMessage('✓ Account created! Check your email inbox (and spam folder) for a confirmation link, then come back to log in.')
-        setMode('login')
-        setEmail('')
-        setPassword('')
-        return
-      }
-
-      // Email confirmation OFF — already logged in
-      if (data?.session) {
-        if (data.user) {
-          await supabase.from('profiles').update({ name, phone }).eq('id', data.user.id)
-        }
-        onAuthed()
-        return
-      }
-
-      setMessage('✓ Account created! You can now log in.')
-      setMode('login')
-
-    } else {
-      const { data, error: loginError } = await supabase.auth.signInWithPassword({ email, password })
-
-      setLoading(false)
-
-      if (loginError) {
-        if (loginError.message.toLowerCase().includes('email not confirmed')) {
-          setError('Please confirm your email first — check your inbox for the confirmation link we sent you.')
-        } else if (loginError.message.toLowerCase().includes('invalid login')) {
-          setError('Incorrect email or password. Please try again.')
-        } else {
-          setError(loginError.message || 'Login failed. Please try again.')
-        }
-        return
-      }
-
-      if (data.user) {
-        await supabase.from('profiles').update({ name: data.user.user_metadata?.name, phone: data.user.user_metadata?.phone }).eq('id', data.user.id)
-      }
-
-      onAuthed()
+    if (signupError) {
+      setError(getErrorMessage(signupError))
+      return
     }
+
+    // Update profile row with name and phone
+    if (data?.user) {
+      await supabase.from('profiles').upsert({
+        id: data.user.id,
+        email: email.trim(),
+        name,
+        phone: phone || null,
+      })
+    }
+
+    // Email confirmation is ON — no session yet
+    if (data?.user && !data?.session) {
+      setMessage('✓ Account created! We sent a confirmation link to ' + email.trim() + '. Check your inbox and spam folder, then come back to log in.')
+      switchMode('login')
+      return
+    }
+
+    // Email confirmation is OFF — logged in immediately
+    if (data?.session) {
+      onAuthed()
+      return
+    }
+
+    setMessage('✓ Account created! You can now log in.')
+    switchMode('login')
+  }
+
+  async function handleLogin() {
+    if (!email.trim()) { setError('Please enter your email address.'); return }
+    if (!password) { setError('Please enter your password.'); return }
+
+    setLoading(true)
+    reset()
+
+    const { data, error: loginError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    })
+
+    setLoading(false)
+
+    if (loginError) {
+      setError(getErrorMessage(loginError))
+      return
+    }
+
+    if (data?.user) {
+      await supabase.from('profiles')
+        .update({ email: data.user.email })
+        .eq('id', data.user.id)
+    }
+
+    onAuthed()
+  }
+
+  async function handleForgotPassword() {
+    if (!email.trim()) { setError('Please enter your email address.'); return }
+
+    setLoading(true)
+    reset()
+
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin,
+    })
+
+    setLoading(false)
+
+    if (resetError) {
+      setError(getErrorMessage(resetError))
+      return
+    }
+
+    setMessage('✓ Password reset link sent to ' + email.trim() + '. Check your inbox and spam folder.')
+  }
+
+  async function handleSubmit() {
+    if (mode === 'signup') await handleSignup()
+    else if (mode === 'login') await handleLogin()
+    else await handleForgotPassword()
   }
 
   return (
     <div className="section" style={{ maxWidth: 420, margin: '0 auto' }}>
-      <h2>{mode === 'login' ? 'Log in' : 'Create an account'}</h2>
+      <h2>
+        {mode === 'login' ? 'Log in to BizCheck' : mode === 'signup' ? 'Create an account' : 'Reset your password'}
+      </h2>
       <p className="muted" style={{ marginBottom: 20 }}>
-        {mode === 'login'
-          ? 'Log in to vote on businesses and submit listings.'
-          : 'Join BizCheck Kenya to help keep online sellers honest.'}
+        {mode === 'login' && 'Log in to vote on businesses and submit listings.'}
+        {mode === 'signup' && 'Join BizCheck Kenya to help keep online sellers honest.'}
+        {mode === 'forgot' && 'Enter your email and we will send you a reset link.'}
       </p>
 
-      {error && <div className="form-error">{error}</div>}
-      {message && <div className="vote-msg">{message}</div>}
+      {error && (
+        <div className="form-error">
+          {typeof error === 'string' ? error : 'Something went wrong. Please try again.'}
+        </div>
+      )}
+      {message && (
+        <div className="vote-msg">
+          {typeof message === 'string' ? message : 'Done!'}
+        </div>
+      )}
 
       {mode === 'signup' && (
         <>
@@ -112,22 +175,24 @@ export default function Auth({ onAuthed }) {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Irya Kym"
+              placeholder="Jane Wanjiru"
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
             />
           </div>
           <div className="form-group">
-            <label>Phone number</label>
+            <label>Phone number (optional)</label>
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="0726 **** ***"
+              placeholder="0712 345 678"
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
             />
           </div>
         </>
       )}
 
       <div className="form-group">
-        <label>Email</label>
+        <label>Email address</label>
         <input
           type="email"
           value={email}
@@ -137,36 +202,72 @@ export default function Auth({ onAuthed }) {
         />
       </div>
 
-      <div className="form-group">
-  <label>Password</label>
-  <div className="input-wrap">
-    <input
-      type={showPassword ? 'text' : 'password'}
-      value={password}
-      onChange={(e) => setPassword(e.target.value)}
-      placeholder="At least 6 characters"
-      onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-    />
-    <button className="toggle-pw" onClick={() => setShowPassword(!showPassword)}>
-      {showPassword ? 'Hide' : 'Show'}
-    </button>
-  </div>
-</div>
+      {mode !== 'forgot' && (
+        <div className="form-group">
+          <label>Password</label>
+          <div className="input-wrap">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 6 characters"
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            />
+            <button type="button" className="toggle-pw" onClick={() => setShowPassword(!showPassword)}>
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'signup' && (
+        <div className="form-group">
+          <label>Confirm password</label>
+          <div className="input-wrap">
+            <input
+              type={showConfirm ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter your password"
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            />
+            <button type="button" className="toggle-pw" onClick={() => setShowConfirm(!showConfirm)}>
+              {showConfirm ? 'Hide' : 'Show'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <button className="btn-primary" onClick={handleSubmit} disabled={loading}>
-        {loading ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Sign up'}
+        {loading
+          ? 'Please wait…'
+          : mode === 'login' ? 'Log in'
+          : mode === 'signup' ? 'Create account'
+          : 'Send reset link'}
       </button>
 
-      <button
-        className="link-btn"
-        style={{ marginTop: 14, textAlign: 'center', width: '100%' }}
-        onClick={() => {
-          setMode(mode === 'login' ? 'signup' : 'login')
-          reset()
-        }}
-      >
-        {mode === 'login' ? "Don't have an account? Sign up →" : 'Already have an account? Log in →'}
-      </button>
+      <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {mode === 'login' && (
+          <>
+            <button className="link-btn" onClick={() => switchMode('signup')}>
+              Don't have an account? Sign up →
+            </button>
+            <button className="link-btn" style={{ color: '#888780' }} onClick={() => switchMode('forgot')}>
+              Forgot your password?
+            </button>
+          </>
+        )}
+        {mode === 'signup' && (
+          <button className="link-btn" onClick={() => switchMode('login')}>
+            Already have an account? Log in →
+          </button>
+        )}
+        {mode === 'forgot' && (
+          <button className="link-btn" onClick={() => switchMode('login')}>
+            ← Back to login
+          </button>
+        )}
+      </div>
     </div>
   )
 }
