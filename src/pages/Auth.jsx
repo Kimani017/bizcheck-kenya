@@ -11,12 +11,21 @@ export default function Auth({ onAuthed }) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
-  async function handleSubmit() {
+  function reset() {
     setError('')
     setMessage('')
+  }
+
+  async function handleSubmit() {
+    reset()
 
     if (!email.trim() || !password.trim()) {
       setError('Please enter your email and password.')
+      return
+    }
+
+    if (mode === 'signup' && password.length < 6) {
+      setError('Password must be at least 6 characters.')
       return
     }
 
@@ -34,25 +43,49 @@ export default function Auth({ onAuthed }) {
       setLoading(false)
 
       if (signupError) {
-  setError(signupError.message || 'Something went wrong. Please try again.')
-  return
-}
-
-setMessage('✓ Account created! Please check your email inbox (and spam folder) for a confirmation link before logging in.')
-      // Update profile with name/phone (the DB trigger creates the row, this fills in extra fields)
-      if (data.user) {
-        await supabase.from('profiles').update({ name, phone }).eq('id', data.user.id)
+        setError(signupError.message || 'Something went wrong. Please try again.')
+        return
       }
 
-      setMessage('Account created! Check your email to confirm, then log in.')
+      // Email confirmation ON — session is null, user needs to confirm
+      if (data?.user && !data.session) {
+        setMessage('✓ Account created! Check your email inbox (and spam folder) for a confirmation link, then come back to log in.')
+        setMode('login')
+        setEmail('')
+        setPassword('')
+        return
+      }
+
+      // Email confirmation OFF — already logged in
+      if (data?.session) {
+        if (data.user) {
+          await supabase.from('profiles').update({ name, phone }).eq('id', data.user.id)
+        }
+        onAuthed()
+        return
+      }
+
+      setMessage('✓ Account created! You can now log in.')
       setMode('login')
+
     } else {
-      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({ email, password })
+
       setLoading(false)
 
       if (loginError) {
-        setError(loginError.message)
+        if (loginError.message.toLowerCase().includes('email not confirmed')) {
+          setError('Please confirm your email first — check your inbox for the confirmation link we sent you.')
+        } else if (loginError.message.toLowerCase().includes('invalid login')) {
+          setError('Incorrect email or password. Please try again.')
+        } else {
+          setError(loginError.message || 'Login failed. Please try again.')
+        }
         return
+      }
+
+      if (data.user) {
+        await supabase.from('profiles').update({ name: data.user.user_metadata?.name, phone: data.user.user_metadata?.phone }).eq('id', data.user.id)
       }
 
       onAuthed()
@@ -75,23 +108,43 @@ setMessage('✓ Account created! Please check your email inbox (and spam folder)
         <>
           <div className="form-group">
             <label>Full name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Wanjiru" />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Jane Wanjiru"
+            />
           </div>
           <div className="form-group">
             <label>Phone number</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0712 345 678" />
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="0712 345 678"
+            />
           </div>
         </>
       )}
 
       <div className="form-group">
         <label>Email</label>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+        />
       </div>
 
       <div className="form-group">
         <label>Password</label>
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" />
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="At least 6 characters"
+          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+        />
       </div>
 
       <button className="btn-primary" onClick={handleSubmit} disabled={loading}>
@@ -100,14 +153,13 @@ setMessage('✓ Account created! Please check your email inbox (and spam folder)
 
       <button
         className="link-btn"
-        style={{ marginTop: 14, textAlign: 'center' }}
+        style={{ marginTop: 14, textAlign: 'center', width: '100%' }}
         onClick={() => {
           setMode(mode === 'login' ? 'signup' : 'login')
-          setError('')
-          setMessage('')
+          reset()
         }}
       >
-        {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Log in'}
+        {mode === 'login' ? "Don't have an account? Sign up →" : 'Already have an account? Log in →'}
       </button>
     </div>
   )
