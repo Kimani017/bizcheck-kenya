@@ -45,7 +45,7 @@ export default function Auth({ onAuthed, initialMode }) {
     setUsername(cleaned)
     if (cleaned.length < 3) { setUsernameAvailable(null); return }
     setCheckingUsername(true)
-    const { data } = await supabase.from('profiles').select('id').eq('username', cleaned).single()
+    const { data } = await supabase.from('profiles').select('id').ilike('username', cleaned).single()
     setCheckingUsername(false)
     setUsernameAvailable(!data)
   }
@@ -54,7 +54,8 @@ export default function Auth({ onAuthed, initialMode }) {
     if (!name.trim()) { setError('Please enter your full name.'); return }
     if (!username.trim() || username.length < 3) { setError('Please enter a username of at least 3 characters.'); return }
     if (usernameAvailable === false) { setError('That username is taken. Please choose another.'); return }
-    if (!email.trim()) { setError('Please enter your email address.'); return }
+    if (!phone.trim()) { setError('Please enter your phone number.'); return }
+    if (!email.trim() && !phone.trim()) { setError('Please enter at least an email or phone number.'); return }
     if (!password) { setError('Please enter a password.'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
     if (password !== confirmPassword) { setError('Passwords do not match.'); return }
@@ -177,14 +178,14 @@ export default function Auth({ onAuthed, initialMode }) {
           </div>
 
           <div className="form-group">
-            <label>Phone number (optional)</label>
+            <label>Phone number *</label>
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0712 345 678" onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} />
           </div>
         </>
       )}
 
       <div className="form-group">
-        <label>Email address</label>
+        <label>Email address (optional)</label>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} />
       </div>
 
