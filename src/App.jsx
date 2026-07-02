@@ -10,6 +10,7 @@ import UserProfile from './pages/UserProfile'
 import Auth from './pages/Auth'
 import SubmitBusiness from './pages/SubmitBusiness'
 import AdminDashboard from './pages/AdminDashboard'
+import SetUsername from './pages/SetUsername'
 import './App.css'
 
 function App() {
@@ -21,13 +22,19 @@ function App() {
   const [user, setUser] = useState(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
+  const [needsUsername, setNeedsUsername] = useState(false)
 
   useEffect(() => {
     init()
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null)
-      if (session?.user) checkAdmin(session.user.id)
-      else setIsAdmin(false)
+      if (session?.user) {
+        checkAdmin(session.user.id)
+        checkUsername(session.user.id)
+      } else {
+        setIsAdmin(false)
+        setNeedsUsername(false)
+      }
     })
     return () => listener.subscription.unsubscribe()
   }, [])
@@ -35,8 +42,17 @@ function App() {
   async function init() {
     const { data } = await supabase.auth.getUser()
     setUser(data.user || null)
-    if (data.user) await checkAdmin(data.user.id)
+    if (data.user) {
+      await checkAdmin(data.user.id)
+      await checkUsername(data.user.id)
+    }
     setCheckingAuth(false)
+  }
+
+  async function checkUsername(userId) {
+    const { data: profile } = await supabase.from('profiles').select('username').eq('id', userId).single()
+    const hasUsername = profile?.username && profile.username.length >= 3
+    setNeedsUsername(!hasUsername)
   }
 
   async function checkAdmin(userId) {
@@ -93,6 +109,11 @@ function App() {
         <div style={{ color: '#1D9E75', fontSize: 16 }}>Loading…</div>
       </div>
     )
+  }
+
+  // User logged in but needs to set username (e.g. Google sign-in)
+  if (user && needsUsername) {
+    return <SetUsername user={user} onDone={() => setNeedsUsername(false)} />
   }
 
   // Not logged in
