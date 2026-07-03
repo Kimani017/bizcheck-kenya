@@ -33,10 +33,28 @@ export default function AdminDashboard() {
 
   async function loadAll() {
     setLoading(true)
-    const [subRes, bizRes] = await Promise.all([
-      supabase.from('submissions').select('*, profiles(name, email, username)').eq('status', 'pending').order('created_at', { ascending: false }),
-      supabase.from('businesses').select('*').order('trust_score', { ascending: false }),
-    ])
+
+    // Fetch submissions separately so we can debug
+    const subRes = await supabase
+      .from('submissions')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+
+    console.log('Submissions result:', subRes)
+    console.log('Submissions data:', subRes.data)
+    console.log('Submissions error:', subRes.error)
+
+    // Also try without the status filter
+    const allSubs = await supabase.from('submissions').select('*')
+    console.log('All submissions:', allSubs.data)
+    console.log('All submissions error:', allSubs.error)
+
+    const bizRes = await supabase
+      .from('businesses')
+      .select('*')
+      .order('trust_score', { ascending: false })
+
     setSubmissions(subRes.data || [])
     setBusinesses(bizRes.data || [])
     await loadReports()
