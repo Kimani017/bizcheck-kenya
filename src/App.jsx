@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
-import Sidebar from './pages/Sidebar'
 import Landing from './pages/Landing'
 import Home from './pages/Home'
 import Directory from './pages/Directory'
@@ -30,8 +29,6 @@ function App() {
   const [needsUsername, setNeedsUsername] = useState(false)
   const [restoring, setRestoring] = useState(true)
   const [theme, setTheme] = useState(() => localStorage.getItem('bizcheck_theme') || 'light')
-  const [sidebarExpanded, setSidebarExpanded] = useState(false)
-  const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768)
   const isRestoringRef = useRef(false)
 
   useEffect(() => {
@@ -42,12 +39,6 @@ function App() {
   function toggleTheme() {
     setTheme(t => t === 'light' ? 'dark' : 'light')
   }
-
-  useEffect(() => {
-    function checkSize() { setIsMobileView(window.innerWidth <= 768) }
-    window.addEventListener('resize', checkSize)
-    return () => window.removeEventListener('resize', checkSize)
-  }, [])
 
   function navigate(newPage, opts = {}) {
     const { business = undefined, userId = undefined, mode = undefined, replace = false } = opts
@@ -252,24 +243,30 @@ function App() {
     )
   }
 
-  // Logged in — sidebar layout
+  // Logged in — centered horizontal top nav
   return (
     <div className="app">
-      <Sidebar
-        page={page}
-        navigate={navigate}
-        openUserProfile={() => openUserProfile(user.id)}
-        isAdmin={isAdmin}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        handleLogout={handleLogout}
-        onExpandChange={setSidebarExpanded}
-      />
+      <nav className="navbar navbar-grid">
+        <div className="logo" onClick={() => navigate('home')}>
+          <span className="logo-dot"></span> BizCheck Kenya
+        </div>
 
-      <div
-        className="main-content"
-        style={{ marginLeft: isMobileView ? 0 : (sidebarExpanded ? 244 : 88) }}
-      >
+        <div className="nav-links nav-links-center">
+          <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button>
+          <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Trusted Sellers</button>
+          <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>Report a Scammer</button>
+          {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
+          <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>
+        </div>
+
+        <div className="nav-links nav-links-right">
+          <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
+          <button className={page === 'support' ? 'active' : ''} onClick={() => navigate('support')}>Support</button>
+          <button onClick={handleLogout}>Log out</button>
+        </div>
+      </nav>
+
+      <div className="main-content">
         {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
         {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} />}
         {page === 'report' && <ReportForm onDone={() => navigate('home')} prefill={reportPrefill} />}
