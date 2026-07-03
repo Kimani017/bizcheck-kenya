@@ -30,6 +30,8 @@ function App() {
   const [needsUsername, setNeedsUsername] = useState(false)
   const [restoring, setRestoring] = useState(true)
   const [theme, setTheme] = useState(() => localStorage.getItem('bizcheck_theme') || 'light')
+  const [sidebarExpanded, setSidebarExpanded] = useState(false)
+  const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768)
   const isRestoringRef = useRef(false)
 
   useEffect(() => {
@@ -40,6 +42,12 @@ function App() {
   function toggleTheme() {
     setTheme(t => t === 'light' ? 'dark' : 'light')
   }
+
+  useEffect(() => {
+    function checkSize() { setIsMobileView(window.innerWidth <= 768) }
+    window.addEventListener('resize', checkSize)
+    return () => window.removeEventListener('resize', checkSize)
+  }, [])
 
   function navigate(newPage, opts = {}) {
     const { business = undefined, userId = undefined, mode = undefined, replace = false } = opts
@@ -255,9 +263,13 @@ function App() {
         theme={theme}
         toggleTheme={toggleTheme}
         handleLogout={handleLogout}
+        onExpandChange={setSidebarExpanded}
       />
 
-      <div className="main-content">
+      <div
+        className="main-content"
+        style={{ marginLeft: isMobileView ? 0 : (sidebarExpanded ? 220 : 64) }}
+      >
         {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
         {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} />}
         {page === 'report' && <ReportForm onDone={() => navigate('home')} prefill={reportPrefill} />}

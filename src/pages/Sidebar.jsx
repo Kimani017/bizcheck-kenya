@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 
 const NAV_ITEMS = (isAdmin) => [
-  { id: 'home', label: 'Home', icon: '🏠' },
-  { id: 'directory', label: 'Trusted Sellers', icon: '🛡️' },
-  { id: 'report', label: 'Report a Scammer', icon: '🚩' },
-  ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: '⚙️' }] : []),
-  { id: 'userProfile', label: 'My Profile', icon: '👤' },
+  { id: 'home', label: 'Home' },
+  { id: 'directory', label: 'Trusted Sellers' },
+  { id: 'report', label: 'Report a Scammer' },
+  ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
+  { id: 'userProfile', label: 'My Profile' },
 ]
 
-export default function Sidebar({ page, navigate, openUserProfile, isAdmin, theme, toggleTheme, handleLogout }) {
+export default function Sidebar({ page, navigate, openUserProfile, isAdmin, theme, toggleTheme, handleLogout, onExpandChange }) {
   const [isMobile, setIsMobile] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [hovered, setHovered] = useState(false)
@@ -22,6 +22,12 @@ export default function Sidebar({ page, navigate, openUserProfile, isAdmin, them
 
   // Desktop: hover to expand. Mobile: click hamburger to open/close.
   const expanded = isMobile ? mobileOpen : hovered
+
+  // Let the parent know when the sidebar is expanded (desktop only)
+  // so the page content can shift over instead of being covered.
+  useEffect(() => {
+    if (onExpandChange) onExpandChange(!isMobile && expanded)
+  }, [expanded, isMobile])
 
   function handleNav(id) {
     if (id === 'userProfile') openUserProfile()
@@ -100,13 +106,13 @@ export default function Sidebar({ page, navigate, openUserProfile, isAdmin, them
                 textAlign: 'left', width: '100%',
               }}
             >
-              <span style={{ fontSize: 18, flexShrink: 0, width: 22, textAlign: 'center' }}>{item.icon}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, flexShrink: 0, width: 22, textAlign: 'center' }}>{item.label[0]}</span>
               {expanded && <span>{item.label}</span>}
             </button>
           ))}
         </div>
 
-        {/* Bottom section: Settings, Support, Theme, Logout */}
+        {/* Bottom section: Settings, Support, Logout */}
         <div style={{ padding: '8px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 2 }}>
           <button
             onClick={() => handleNav('settings')}
@@ -119,7 +125,7 @@ export default function Sidebar({ page, navigate, openUserProfile, isAdmin, them
               fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'left', width: '100%',
             }}
           >
-            <span style={{ fontSize: 18, flexShrink: 0, width: 22, textAlign: 'center' }}>⚙️</span>
+            <span style={{ fontSize: 13, fontWeight: 700, flexShrink: 0, width: 22, textAlign: 'center' }}>S</span>
             {expanded && <span>Settings</span>}
           </button>
 
@@ -134,20 +140,8 @@ export default function Sidebar({ page, navigate, openUserProfile, isAdmin, them
               fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'left', width: '100%',
             }}
           >
-            <span style={{ fontSize: 18, flexShrink: 0, width: 22, textAlign: 'center' }}>💬</span>
+            <span style={{ fontSize: 13, fontWeight: 700, flexShrink: 0, width: 22, textAlign: 'center' }}>H</span>
             {expanded && <span>Support</span>}
-          </button>
-
-          <button
-            onClick={toggleTheme}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 14, padding: '11px 12px',
-              borderRadius: 10, border: 'none', background: 'transparent', color: 'var(--text)',
-              fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'left', width: '100%',
-            }}
-          >
-            <span style={{ fontSize: 18, flexShrink: 0, width: 22, textAlign: 'center' }}>{theme === 'light' ? '🌙' : '☀️'}</span>
-            {expanded && <span>{theme === 'light' ? 'Dark mode' : 'Light mode'}</span>}
           </button>
 
           <button
@@ -158,7 +152,7 @@ export default function Sidebar({ page, navigate, openUserProfile, isAdmin, them
               fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'left', width: '100%',
             }}
           >
-            <span style={{ fontSize: 18, flexShrink: 0, width: 22, textAlign: 'center' }}>🚪</span>
+            <span style={{ fontSize: 13, fontWeight: 700, flexShrink: 0, width: 22, textAlign: 'center' }}>L</span>
             {expanded && <span>Log out</span>}
           </button>
         </div>
