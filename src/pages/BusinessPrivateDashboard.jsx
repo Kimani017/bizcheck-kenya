@@ -14,6 +14,7 @@ function StarDisplay({ rating, size = 14 }) {
 export default function BusinessPrivateDashboard({ business, onBack, currentUser }) {
   const [biz, setBiz] = useState(business)
   const [reviews, setReviews] = useState([])
+  const [replies, setReplies] = useState({}) // { review_id: [replies] }
   const [views, setViews] = useState([])
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({
@@ -31,14 +32,23 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
   }, [])
 
   async function loadData() {
-    const [revRes, viewRes, bizRes] = await Promise.all([
+    const [revRes, viewRes, bizRes, replyRes] = await Promise.all([
       supabase.from('reviews').select('*, profiles(name, username)').eq('business_id', biz.id).order('created_at', { ascending: false }),
       supabase.from('profile_views').select('*').eq('business_id', biz.id).order('created_at', { ascending: false }).limit(100),
       supabase.from('businesses').select('*').eq('id', biz.id).single(),
+      supabase.from('review_replies').select('*, profiles(name, username)').eq('business_id', biz.id).order('created_at', { ascending: true }),
     ])
     setReviews(revRes.data || [])
     setViews(viewRes.data || [])
     if (bizRes.data) setBiz(bizRes.data)
+
+    // Group replies by review_id
+    const grouped = {}
+    ;(replyRes.data || []).forEach((r) => {
+      if (!grouped[r.review_id]) grouped[r.review_id] = []
+      grouped[r.review_id].push(r)
+    })
+    setReplies(grouped)
   }
 
   async function saveEdits() {
@@ -49,7 +59,6 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
     loadData()
   }
 
-  // Group views by day
   const viewsByDay = views.reduce((acc, v) => {
     const day = new Date(v.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })
     acc[day] = (acc[day] || 0) + 1
@@ -82,7 +91,6 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
             Business name, category and location are locked after verification. Contact support to change these.
           </p>
 
-          {/* Locked fields — shown but not editable */}
           <div style={{ background: '#F1EFE8', borderRadius: 8, padding: '12px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
               <span style={{ color: '#888780' }}>🔒 Business name</span>
@@ -176,32 +184,103 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
         </div>
       )}
 
-      {/* REVIEWS RECEIVED */}
+      {/* REVIEWS + REPLY THREAD */}
       <h3 style={{ marginBottom: 12 }}>Reviews received ({reviews.length})</h3>
       {reviews.length === 0 ? (
         <p className="muted">No reviews yet.</p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {reviews.map((r) => (
-            <div key={r.id} className="review-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <div style={{ fontWeight: 500, fontSize: 14 }}>@{r.profiles?.username || r.profiles?.name || 'user'}</div>
-                <StarDisplay rating={r.rating} />
-              </div>
-              {r.review_text && <p style={{ fontSize: 13, color: '#5F5E5A' }}>{r.review_text}</p>}
-              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-              {r.owner_reply ? (
-                <div style={{ background: '#F0FAF6', border: '1px solid #C8EDE0', borderRadius: 8, padding: '8px 12px', marginTop: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#085041' }}>🏢 Your reply: </span>
-                  <span style={{ fontSize: 12, color: '#2C2C2A' }}>{r.owner_reply}</span>
-                </div>
-              ) : (
-                <div style={{ marginTop: 6, fontSize: 12, color: '#EF9F27' }}>
-                  ⚠ Not replied yet — visit this business's public page to respond
-                </div>
-              )}
-            </div>
+            <ReviewWithThread
+              key={r.id}
+              review={r}
+              existingReplies={replies[r.id] || []}
+              currentUser={currentUser}
+              businessId={biz.id}
+              onReplyPosted={loadData}
+            />
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── REVIEW CARD WITH REPLY THREAD (owner replies from here directly) ──
+function ReviewWithThread({ review, existingReplies, currentUser, businessId, onReplyPosted }) {
+  const [showReplyBox, setShowReplyBox] = useState(false)
+  const [message, setMessage] = useState('')
+  const [posting, setPosting] = useState(false)
+
+  async function postReply() {
+    if (!message.trim()) return
+    setPosting(true)
+    const { error } = await supabase.from('review_replies').insert({
+      review_id: review.id,
+      business_id: businessId,
+      author_id: currentUser.id,
+      message: message.trim(),
+    })
+    setPosting(false)
+    if (error) { alert('Error posting reply: ' + error.message); return }
+    setMessage('')
+    setShowReplyBox(false)
+    onReplyPosted()
+  }
+
+  return (
+    <div className="review-card">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <div style={{ fontWeight: 500, fontSize: 14 }}>@{review.profiles?.username || review.profiles?.name || 'user'}</div>
+        <StarDisplay rating={review.rating} />
+      </div>
+      {review.review_text && <p style={{ fontSize: 13, color: '#5F5E5A' }}>{review.review_text}</p>}
+      <div className="muted" style={{ fontSize: 11, marginTop: 4, marginBottom: existingReplies.length > 0 ? 10 : 0 }}>
+        {new Date(review.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+      </div>
+
+      {/* REPLY THREAD — public, shows both owner and customer replies */}
+      {existingReplies.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginLeft: 16, borderLeft: '2px solid #E5E3DC', paddingLeft: 12 }}>
+          {existingReplies.map((rep) => {
+            const isMe = rep.author_id === currentUser.id
+            return (
+              <div key={rep.id} style={{ background: isMe ? '#F0FAF6' : '#F9F8F5', border: `1px solid ${isMe ? '#C8EDE0' : '#E5E3DC'}`, borderRadius: 8, padding: '8px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isMe ? '#085041' : '#5F5E5A' }}>
+                    {isMe ? '🏢 You (business)' : `💬 @${rep.profiles?.username || 'user'}`}
+                  </span>
+                  <span style={{ fontSize: 10, color: '#888780' }}>{new Date(rep.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}</span>
+                </div>
+                <p style={{ fontSize: 12, color: '#2C2C2A' }}>{rep.message}</p>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* REPLY BUTTON / FORM — right here in the dashboard */}
+      {!showReplyBox ? (
+        <button className="link-btn" style={{ margin: '10px 0 0', fontSize: 12, color: '#1D9E75' }} onClick={() => setShowReplyBox(true)}>
+          💬 {existingReplies.length > 0 ? 'Add another reply' : 'Reply to this review'}
+        </button>
+      ) : (
+        <div style={{ marginTop: 10 }}>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={2}
+            placeholder="Write a public reply — visible to everyone..."
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #E5E3DC', fontSize: 13, fontFamily: 'inherit', marginBottom: 8 }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn-primary" style={{ width: 'auto', padding: '7px 18px', fontSize: 13 }} onClick={postReply} disabled={posting}>
+              {posting ? 'Posting…' : 'Post reply'}
+            </button>
+            <button className="btn-ghost-small" onClick={() => { setShowReplyBox(false); setMessage('') }}>
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -16,6 +16,7 @@ function StarDisplay({ rating, size = 16 }) {
 export default function BusinessPublicProfile({ business, onBack, onReport, currentUser }) {
   const [biz, setBiz] = useState(business)
   const [reviews, setReviews] = useState([])
+  const [replies, setReplies] = useState({}) // { review_id: [replies] }
   const [myReview, setMyReview] = useState(null)
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
@@ -40,20 +41,29 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
   }
 
   async function loadReviews() {
-    const { data } = await supabase
-      .from('reviews')
-      .select('*, profiles(name, username)')
-      .eq('business_id', biz.id)
-      .order('created_at', { ascending: false })
-    setReviews(data || [])
+    const [revRes, replyRes] = await Promise.all([
+      supabase.from('reviews').select('*, profiles(name, username)').eq('business_id', biz.id).order('created_at', { ascending: false }),
+      supabase.from('review_replies').select('*, profiles(name, username)').eq('business_id', biz.id).order('created_at', { ascending: true }),
+    ])
+    const data = revRes.data || []
+    setReviews(data)
     if (currentUser) {
-      const mine = (data || []).find((r) => r.reviewer_id === currentUser.id)
+      const mine = data.find((r) => r.reviewer_id === currentUser.id)
       if (mine) {
         setMyReview(mine)
         setRating(mine.rating)
         setReviewText(mine.review_text || '')
       }
     }
+
+    // Group replies by review_id
+    const grouped = {}
+    ;(replyRes.data || []).forEach((r) => {
+      if (!grouped[r.review_id]) grouped[r.review_id] = []
+      grouped[r.review_id].push(r)
+    })
+    setReplies(grouped)
+
     // Refresh business data for latest ratings
     const { data: updated } = await supabase.from('businesses').select('*').eq('id', biz.id).single()
     if (updated) setBiz(updated)
@@ -200,8 +210,11 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
               <ReviewCard
                 key={r.id}
                 review={r}
-                isOwner={currentUser?.id === biz.owner_id}
-                onReplySaved={loadReviews}
+                replies={replies[r.id] || []}
+                currentUser={currentUser}
+                businessId={biz.id}
+                ownerId={biz.owner_id}
+                onReplyPosted={loadReviews}
               />
             ))}
           </div>
@@ -211,22 +224,26 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
   )
 }
 
-function ReviewCard({ review, isOwner, onReplySaved }) {
-  const [replying, setReplying] = useState(false)
-  const [replyText, setReplyText] = useState(review.owner_reply || '')
-  const [saving, setSaving] = useState(false)
+function ReviewCard({ review, replies, currentUser, businessId, ownerId, onReplyPosted }) {
+  const [showReplyBox, setShowReplyBox] = useState(false)
+  const [message, setMessage] = useState('')
+  const [posting, setPosting] = useState(false)
 
-  async function saveReply() {
-    if (!replyText.trim()) return
-    setSaving(true)
-    const { error } = await supabase
-      .from('reviews')
-      .update({ owner_reply: replyText.trim(), owner_reply_at: new Date().toISOString() })
-      .eq('id', review.id)
-    setSaving(false)
-    if (error) { alert('Error saving reply: ' + error.message); return }
-    setReplying(false)
-    onReplySaved()
+  async function postReply() {
+    if (!message.trim()) return
+    if (!currentUser) { alert('Please log in to reply.'); return }
+    setPosting(true)
+    const { error } = await supabase.from('review_replies').insert({
+      review_id: review.id,
+      business_id: businessId,
+      author_id: currentUser.id,
+      message: message.trim(),
+    })
+    setPosting(false)
+    if (error) { alert('Error posting reply: ' + error.message); return }
+    setMessage('')
+    setShowReplyBox(false)
+    onReplyPosted()
   }
 
   return (
@@ -242,49 +259,60 @@ function ReviewCard({ review, isOwner, onReplySaved }) {
         <StarDisplay rating={review.rating} size={14} />
       </div>
 
-      {review.review_text && <p style={{ fontSize: 14, color: '#2C2C2A', lineHeight: 1.6, marginBottom: review.owner_reply || isOwner ? 10 : 0 }}>{review.review_text}</p>}
+      {review.review_text && <p style={{ fontSize: 14, color: '#2C2C2A', lineHeight: 1.6, marginBottom: replies.length > 0 ? 10 : 0 }}>{review.review_text}</p>}
 
-      {/* Public owner reply — visible to everyone */}
-      {review.owner_reply && !replying && (
-        <div style={{ background: '#F0FAF6', border: '1px solid #C8EDE0', borderRadius: 10, padding: '10px 14px', marginTop: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#085041' }}>🏢 Business reply</span>
-            <span style={{ fontSize: 11, color: '#888780' }}>{new Date(review.owner_reply_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-          </div>
-          <p style={{ fontSize: 13, color: '#2C2C2A', lineHeight: 1.6 }}>{review.owner_reply}</p>
-          {isOwner && (
-            <button className="link-btn" style={{ margin: '6px 0 0', fontSize: 12 }} onClick={() => { setReplying(true); setReplyText(review.owner_reply) }}>
-              ✏️ Edit reply
-            </button>
-          )}
+      {/* Public reply thread — anyone logged in can post here */}
+      {replies.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, marginLeft: 16, borderLeft: '2px solid #E5E3DC', paddingLeft: 12 }}>
+          {replies.map((rep) => {
+            const isBizOwner = rep.author_id === ownerId
+            return (
+              <div
+                key={rep.id}
+                style={{
+                  background: isBizOwner ? '#F0FAF6' : '#F9F8F5',
+                  border: `1px solid ${isBizOwner ? '#C8EDE0' : '#E5E3DC'}`,
+                  borderRadius: 8, padding: '8px 12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isBizOwner ? '#085041' : '#5F5E5A' }}>
+                    {isBizOwner ? '🏢 Business reply' : `💬 @${rep.profiles?.username || 'user'}`}
+                  </span>
+                  <span style={{ fontSize: 10, color: '#888780' }}>{new Date(rep.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                </div>
+                <p style={{ fontSize: 13, color: '#2C2C2A' }}>{rep.message}</p>
+              </div>
+            )
+          })}
         </div>
       )}
 
-      {/* Owner reply form — only owner sees this */}
-      {isOwner && !review.owner_reply && !replying && (
-        <button className="link-btn" style={{ margin: '8px 0 0', fontSize: 12, color: '#1D9E75' }} onClick={() => setReplying(true)}>
-          💬 Reply to this review
-        </button>
-      )}
-
-      {isOwner && replying && (
-        <div style={{ marginTop: 10 }}>
-          <textarea
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-            rows={2}
-            placeholder="Write a public reply to this review..."
-            style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #E5E3DC', fontSize: 13, fontFamily: 'inherit', marginBottom: 8 }}
-          />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn-primary" style={{ width: 'auto', padding: '7px 18px', fontSize: 13 }} onClick={saveReply} disabled={saving}>
-              {saving ? 'Saving…' : 'Post reply'}
-            </button>
-            <button className="btn-ghost-small" onClick={() => { setReplying(false); setReplyText(review.owner_reply || '') }}>
-              Cancel
-            </button>
+      {/* REPLY BUTTON / FORM — any logged-in user can reply */}
+      {currentUser && (
+        !showReplyBox ? (
+          <button className="link-btn" style={{ margin: '10px 0 0', fontSize: 12, color: '#1D9E75' }} onClick={() => setShowReplyBox(true)}>
+            💬 Reply
+          </button>
+        ) : (
+          <div style={{ marginTop: 10 }}>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={2}
+              placeholder="Write a public reply..."
+              style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #E5E3DC', fontSize: 13, fontFamily: 'inherit', marginBottom: 8 }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn-primary" style={{ width: 'auto', padding: '7px 18px', fontSize: 13 }} onClick={postReply} disabled={posting}>
+                {posting ? 'Posting…' : 'Post reply'}
+              </button>
+              <button className="btn-ghost-small" onClick={() => { setShowReplyBox(false); setMessage('') }}>
+                Cancel
+              </button>
+            </div>
           </div>
-        </div>
+        )
       )}
     </div>
   )
