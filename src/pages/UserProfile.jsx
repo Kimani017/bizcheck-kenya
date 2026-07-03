@@ -29,7 +29,7 @@ const THEMES = {
   },
   history: {
     bg: '#F5F6F7',
-    header: 'linear-gradient(135deg, '#37474F' 0%, '#546E7A' 100%)',
+   header: 'linear-gradient(135deg, #37474F 0%, #546E7A 100%)',
     accent: '#546E7A',
     light: '#ECEFF1',
     text: '#37474F',
