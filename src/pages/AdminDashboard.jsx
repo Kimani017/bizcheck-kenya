@@ -34,7 +34,7 @@ export default function AdminDashboard() {
   async function loadAll() {
     setLoading(true)
     const [subRes, bizRes] = await Promise.all([
-      supabase.from('submissions').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
+      supabase.from('submissions').select('*, profiles(name, email, username)').eq('status', 'pending').order('created_at', { ascending: false }),
       supabase.from('businesses').select('*').order('trust_score', { ascending: false }),
     ])
     setSubmissions(subRes.data || [])
@@ -63,6 +63,7 @@ export default function AdminDashboard() {
       tiktok_handle: sub.tiktok_handle,
       instagram_handle: sub.instagram_handle,
       logo_url: sub.logo_url,
+      owner_id: sub.submitter_id, // link business to the submitter
       status: 'verified',
     })
 
@@ -227,9 +228,12 @@ export default function AdminDashboard() {
                   <div>
                     <strong>{s.name}</strong> <span className="muted">— {s.category}</span>
                     <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-                      {s.phone} {s.mpesa_till && `· ${s.mpesa_till}`} {s.fb_handle && `· ${s.fb_handle}`}
+                      {s.location && `📍 ${s.location} · `}{s.phone} {s.mpesa_till && `· ${s.mpesa_till}`} {s.fb_handle && `· ${s.fb_handle}`}
                     </div>
                     {s.description && <div style={{ fontSize: 13, marginTop: 4 }}>{s.description}</div>}
+                    <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                      Submitted by: {s.profiles?.name || s.profiles?.username || 'Unknown'} · {new Date(s.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </div>
                   </div>
                   <div className="admin-actions">
                     <button className="btn-small" onClick={() => approveSubmission(s)}>Approve</button>

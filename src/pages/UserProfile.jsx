@@ -29,7 +29,7 @@ const THEMES = {
   },
   history: {
     bg: '#F5F6F7',
-   header: 'linear-gradient(135deg, #37474F 0%, #546E7A 100%)',
+    header: "linear-gradient(135deg, #37474F 0%, #546E7A 100%)",
     accent: '#546E7A',
     light: '#ECEFF1',
     text: '#37474F',
@@ -59,9 +59,26 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
       .from('profiles').select('*').eq('id', profileUserId).single()
     setProfile(profileData)
 
-    const { data: bizData } = await supabase
-      .from('businesses').select('*').eq('owner_id', profileUserId)
-    setBusinesses(bizData || [])
+    // Fetch both approved businesses and pending submissions
+    const [bizRes, subRes] = await Promise.all([
+      supabase.from('businesses').select('*').eq('owner_id', profileUserId),
+      supabase.from('submissions').select('*').eq('submitter_id', profileUserId).eq('status', 'pending'),
+    ])
+
+    // Merge them — submissions show as pending cards
+    const approvedBiz = (bizRes.data || [])
+    const pendingSubs = (subRes.data || []).map(s => ({
+      ...s,
+      status: 'pending',
+      trust_score: 0,
+      legit_votes: 0,
+      scam_votes: 0,
+      view_count: 0,
+      review_count: 0,
+      avg_rating: 0,
+      is_submission: true, // flag to distinguish
+    }))
+    setBusinesses([...approvedBiz, ...pendingSubs])
 
     if (canSeePrivate) {
       const [revRes, voteRes, viewRes] = await Promise.all([
@@ -389,6 +406,7 @@ function BusinessForm({ currentUser, theme, onSubmitted }) {
     const { error: insertError } = await supabase.from('submissions').insert({
       submitter_id: currentUser.id,
       name: form.name, category: form.category,
+      location: form.location || null,
       description: form.description,
       phone: form.phone || null, mpesa_till: form.mpesa_till || null,
       fb_handle: form.fb_handle || null, tiktok_handle: form.tiktok_handle || null,
@@ -474,15 +492,38 @@ function BusinessForm({ currentUser, theme, onSubmitted }) {
 // ======= OWNED BUSINESS CARD =======
 function OwnedBusinessCard({ business, theme }) {
   const trustColor = business.trust_score > 70 ? '#1D9E75' : business.trust_score > 40 ? '#EF9F27' : '#E24B4A'
+  const isPending = business.is_submission || business.status === 'pending'
 
   return (
-    <div style={{ background: '#fff', border: `1px solid ${theme.border}`, borderRadius: 14, padding: 20, transition: 'box-shadow 0.2s' }}>
+    <div style={{
+      background: '#fff',
+      border: `1px solid ${isPending ? '#E5C97E' : theme.border}`,
+      borderRadius: 14, padding: 20,
+      opacity: isPending ? 0.9 : 1,
+    }}>
+      {/* Pending banner */}
+      {isPending && (
+        <div style={{
+          background: '#FFFBEB', border: '1px solid #E5C97E',
+          borderRadius: 8, padding: '8px 12px', marginBottom: 14,
+          display: 'flex', alignItems: 'center', gap: 8,
+          fontSize: 13, color: '#854D0E',
+        }}>
+          <span>⏳</span>
+          <span><strong>Pending review</strong> — our admin team will verify your business within 24hrs.</span>
+        </div>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: '#2C2C2A', marginBottom: 3 }}>{business.name}</div>
           <div style={{ fontSize: 12, color: '#888780' }}>{business.category} · 📍 {business.location || 'No location set'}</div>
         </div>
-        <span className={`badge ${business.status === 'verified' ? 'badge-verified' : business.status === 'flagged' ? 'badge-danger' : 'badge-pending'}`} style={{ flexShrink: 0 }}>
+        <span className={`badge ${
+          business.status === 'verified' ? 'badge-verified' :
+          business.status === 'flagged' ? 'badge-danger' :
+          'badge-pending'
+        }`} style={{ flexShrink: 0 }}>
           {business.status}
         </span>
       </div>
@@ -491,22 +532,24 @@ function OwnedBusinessCard({ business, theme }) {
         <p style={{ fontSize: 13, color: '#5F5E5A', lineHeight: 1.6, marginBottom: 12 }}>{business.description}</p>
       )}
 
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#888780', marginBottom: 4 }}>
-          <span>Trust score</span>
-          <span style={{ color: trustColor, fontWeight: 600 }}>{business.trust_score}%</span>
+      {!isPending && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#888780', marginBottom: 4 }}>
+            <span>Trust score</span>
+            <span style={{ color: trustColor, fontWeight: 600 }}>{business.trust_score}%</span>
+          </div>
+          <div style={{ height: 5, borderRadius: 3, background: '#F1EFE8' }}>
+            <div style={{ height: 5, borderRadius: 3, background: trustColor, width: `${business.trust_score}%` }}></div>
+          </div>
         </div>
-        <div style={{ height: 5, borderRadius: 3, background: '#F1EFE8' }}>
-          <div style={{ height: 5, borderRadius: 3, background: trustColor, width: `${business.trust_score}%` }}></div>
-        </div>
-      </div>
+      )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 12, color: '#5F5E5A', paddingTop: 10, borderTop: `1px solid ${theme.light}` }}>
         {business.phone && <span>📞 {business.phone}</span>}
         {business.mpesa_till && <span>💳 {business.mpesa_till}</span>}
         {business.fb_handle && <span>📘 {business.fb_handle}</span>}
-        {business.view_count > 0 && <span>👁 {business.view_count} views</span>}
-        {business.review_count > 0 && <span>⭐ {business.avg_rating?.toFixed(1)} ({business.review_count} reviews)</span>}
+        {!isPending && business.view_count > 0 && <span>👁 {business.view_count} views</span>}
+        {!isPending && business.review_count > 0 && <span>⭐ {business.avg_rating?.toFixed(1)} ({business.review_count} reviews)</span>}
       </div>
     </div>
   )
