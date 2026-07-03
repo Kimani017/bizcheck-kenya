@@ -26,6 +26,7 @@ function App() {
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [needsUsername, setNeedsUsername] = useState(false)
   const [restoring, setRestoring] = useState(true)
+  const [theme, setTheme] = useState(() => localStorage.getItem('bizcheck_theme') || 'light')
   const isRestoringRef = useRef(false)
 
   // ============================================================
@@ -92,6 +93,15 @@ function App() {
     } finally {
       isRestoringRef.current = false
     }
+  }
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('bizcheck_theme', theme)
+  }, [theme])
+
+  function toggleTheme() {
+    setTheme(t => t === 'light' ? 'dark' : 'light')
   }
 
   useEffect(() => {
@@ -252,6 +262,7 @@ function App() {
             <span className="logo-dot"></span> BizCheck Kenya
           </div>
           <div className="nav-links">
+            <button className="theme-toggle" onClick={toggleTheme}>{theme === 'light' ? '🌙' : '☀️'} {theme === 'light' ? 'Dark' : 'Light'}</button>
             <button className={page === 'auth' && authMode === 'login' ? 'active' : ''} onClick={() => goToAuth('login')}>Log in</button>
             <button className="btn-signup" onClick={() => goToAuth('signup')}>Sign up</button>
           </div>
@@ -274,6 +285,7 @@ function App() {
           <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>Report a Scammer</button>
           {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
           <button onClick={() => openUserProfile(user.id)}>My Profile</button>
+          <button className="theme-toggle" onClick={toggleTheme}>{theme === 'light' ? '🌙' : '☀️'}</button>
           <button onClick={handleLogout}>Log out</button>
         </div>
       </nav>

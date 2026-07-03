@@ -109,7 +109,7 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
       {/* HEADER */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 style={{ fontSize: 24, marginBottom: 4 }}>{biz.name}</h2>
+          <h2 style={{ fontSize: 24, marginBottom: 4, color: '#1A1A18', fontWeight: 700 }}>{biz.name}</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span className="badge badge-verified" style={{ fontSize: 12 }}>{biz.category}</span>
             {biz.location && <span className="muted">📍 {biz.location}</span>}
