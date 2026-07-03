@@ -211,6 +211,7 @@ function App() {
           currentUser={user}
           isAdmin={isAdmin}
           onBack={() => setPage('home')}
+          onSelectBusiness={openBusiness}
         />
       )}
     </div>

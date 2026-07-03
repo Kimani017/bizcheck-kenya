@@ -48,7 +48,7 @@ const THEMES = {
   },
 }
 
-export default function UserProfile({ profileUserId, currentUser, isAdmin, onBack }) {
+export default function UserProfile({ profileUserId, currentUser, isAdmin, onBack, onSelectBusiness }) {
   const [activeTab, setActiveTab] = useState('business')
   const [profile, setProfile] = useState(null)
   const [businesses, setBusinesses] = useState([])
@@ -209,7 +209,19 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {businesses.map((b) => <OwnedBizCard key={b.id} business={b} theme={T} />)}
+                  {businesses.map((b) => (
+                    <OwnedBizCard
+                      key={b.id}
+                      business={b}
+                      theme={T}
+                      onClick={
+                        // Only clickable if it's an approved business (not a pending submission)
+                        !b.is_submission && b.status !== 'pending' && onSelectBusiness
+                          ? () => onSelectBusiness(b)
+                          : null
+                      }
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -362,12 +374,23 @@ function Section({ title, count, icon, theme, children }) {
 }
 
 // ── OWNED BUSINESS CARD ──
-function OwnedBizCard({ business, theme }) {
+function OwnedBizCard({ business, theme, onClick }) {
   const trustColor = business.trust_score > 70 ? '#1D9E75' : business.trust_score > 40 ? '#EF9F27' : '#E24B4A'
   const isPending = business.is_submission || business.status === 'pending'
+  const isClickable = !!onClick
 
   return (
-    <div style={{ background: '#fff', borderRadius: 14, padding: 18, border: `1.5px solid ${isPending ? '#E5C97E' : theme.cardBorder}` }}>
+    <div
+      onClick={onClick || undefined}
+      style={{
+        background: '#fff', borderRadius: 14, padding: 18,
+        border: `1.5px solid ${isPending ? '#E5C97E' : theme.cardBorder}`,
+        cursor: isClickable ? 'pointer' : 'default',
+        transition: 'box-shadow 0.2s, border-color 0.2s',
+      }}
+      onMouseEnter={(e) => { if (isClickable) { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'; e.currentTarget.style.borderColor = theme.accent } }}
+      onMouseLeave={(e) => { if (isClickable) { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = theme.cardBorder } }}
+    >
       {isPending && (
         <div style={{ background: '#FFFBEB', border: '1px solid #E5C97E', borderRadius: 8, padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: '#854D0E' }}>
           <span style={{ flexShrink: 0 }}>⏳</span>
@@ -408,6 +431,12 @@ function OwnedBizCard({ business, theme }) {
         {!isPending && business.view_count > 0 && <span>👁 {business.view_count} views</span>}
         {!isPending && business.review_count > 0 && <span>⭐ {business.avg_rating?.toFixed(1)} ({business.review_count})</span>}
       </div>
+
+      {isClickable && (
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${theme.accentLight}`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, fontSize: 12, color: theme.accent, fontWeight: 600 }}>
+          View full profile & reviews →
+        </div>
+      )}
     </div>
   )
 }
