@@ -99,12 +99,15 @@ function App() {
 
     // Handle browser back/forward buttons
     const onPopState = (event) => {
-      if (event.state) {
+      if (event.state && event.state.page) {
         restoreNavState(event.state)
       } else {
+        // No tracked state (user went back past app's history) — fall back to home
+        isRestoringRef.current = true
         setPage('home')
         setSelectedBusiness(null)
         setSelectedUserId(null)
+        isRestoringRef.current = false
       }
     }
     window.addEventListener('popstate', onPopState)
@@ -222,6 +225,12 @@ function App() {
     navigate('home', { business: null, userId: null })
   }
 
+  // Used by all in-app "Back" buttons — goes to the real previous
+  // page via browser history instead of hardcoding 'home'
+  function goBack() {
+    window.history.back()
+  }
+
   if (checkingAuth || restoring) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
@@ -277,7 +286,7 @@ function App() {
       {page === 'bizProfile' && selectedBusiness && (
         <BusinessPublicProfile
           business={selectedBusiness}
-          onBack={() => navigate('home')}
+          onBack={goBack}
           onReport={goToReport}
           currentUser={user}
         />
@@ -285,7 +294,7 @@ function App() {
       {page === 'bizDashboard' && selectedBusiness && (
         <BusinessPrivateDashboard
           business={selectedBusiness}
-          onBack={() => navigate('home')}
+          onBack={goBack}
           currentUser={user}
         />
       )}
@@ -294,7 +303,7 @@ function App() {
           profileUserId={selectedUserId}
           currentUser={user}
           isAdmin={isAdmin}
-          onBack={() => navigate('home')}
+          onBack={goBack}
           onSelectBusiness={openBusiness}
         />
       )}
