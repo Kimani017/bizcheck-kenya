@@ -26,14 +26,28 @@ function App() {
 
   useEffect(() => {
     init()
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null)
-      if (session?.user) {
-        checkAdmin(session.user.id)
-        checkUsername(session.user.id)
-      } else {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
         setIsAdmin(false)
         setNeedsUsername(false)
+        return
+      }
+
+      if (event === 'SIGNED_IN') {
+        // Only check username on actual new sign-in, not token refresh
+        setUser(session?.user || null)
+        if (session?.user) {
+          checkAdmin(session.user.id)
+          checkUsername(session.user.id)
+        }
+        return
+      }
+
+      // TOKEN_REFRESHED and other events — just update user state, don't re-check username
+      if (session?.user) {
+        setUser(session.user)
+        checkAdmin(session.user.id)
       }
     })
     return () => listener.subscription.unsubscribe()
@@ -41,18 +55,38 @@ function App() {
 
   async function init() {
     const { data } = await supabase.auth.getUser()
-    setUser(data.user || null)
-    if (data.user) {
-      await checkAdmin(data.user.id)
-      await checkUsername(data.user.id)
+    const currentUser = data.user || null
+    setUser(currentUser)
+    if (currentUser) {
+      // Run in parallel for speed
+      await Promise.all([
+        checkAdmin(currentUser.id),
+        checkUsername(currentUser.id),
+      ])
     }
     setCheckingAuth(false)
   }
 
   async function checkUsername(userId) {
-    const { data: profile } = await supabase.from('profiles').select('username').eq('id', userId).single()
-    const hasUsername = profile?.username && profile.username.length >= 3
-    setNeedsUsername(!hasUsername)
+    // Retry up to 3 times on mobile in case of slow connection
+    let attempts = 0
+    while (attempts < 3) {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', userId)
+        .single()
+
+      if (!error) {
+        const hasUsername = profile?.username && profile.username.length >= 3
+        setNeedsUsername(!hasUsername)
+        return
+      }
+      attempts++
+      await new Promise(r => setTimeout(r, 1000)) // wait 1s before retry
+    }
+    // After 3 failed attempts, don't block the user
+    setNeedsUsername(false)
   }
 
   async function checkAdmin(userId) {
