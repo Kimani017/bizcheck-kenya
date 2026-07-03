@@ -197,23 +197,95 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {reviews.map((r) => (
-              <div key={r.id} className="review-card">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div className="review-avatar">{(r.profiles?.username || r.profiles?.name || 'U')[0].toUpperCase()}</div>
-                    <div>
-                      <div style={{ fontWeight: 500, fontSize: 14 }}>@{r.profiles?.username || 'user'}</div>
-                      <div className="muted" style={{ fontSize: 12 }}>{new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                    </div>
-                  </div>
-                  <StarDisplay rating={r.rating} size={14} />
-                </div>
-                {r.review_text && <p style={{ fontSize: 14, color: '#2C2C2A', lineHeight: 1.6 }}>{r.review_text}</p>}
-              </div>
+              <ReviewCard
+                key={r.id}
+                review={r}
+                isOwner={currentUser?.id === biz.owner_id}
+                onReplySaved={loadReviews}
+              />
             ))}
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function ReviewCard({ review, isOwner, onReplySaved }) {
+  const [replying, setReplying] = useState(false)
+  const [replyText, setReplyText] = useState(review.owner_reply || '')
+  const [saving, setSaving] = useState(false)
+
+  async function saveReply() {
+    if (!replyText.trim()) return
+    setSaving(true)
+    const { error } = await supabase
+      .from('reviews')
+      .update({ owner_reply: replyText.trim(), owner_reply_at: new Date().toISOString() })
+      .eq('id', review.id)
+    setSaving(false)
+    if (error) { alert('Error saving reply: ' + error.message); return }
+    setReplying(false)
+    onReplySaved()
+  }
+
+  return (
+    <div className="review-card">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="review-avatar">{(review.profiles?.username || 'U')[0].toUpperCase()}</div>
+          <div>
+            <div style={{ fontWeight: 500, fontSize: 14 }}>@{review.profiles?.username || 'user'}</div>
+            <div className="muted" style={{ fontSize: 12 }}>{new Date(review.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+          </div>
+        </div>
+        <StarDisplay rating={review.rating} size={14} />
+      </div>
+
+      {review.review_text && <p style={{ fontSize: 14, color: '#2C2C2A', lineHeight: 1.6, marginBottom: review.owner_reply || isOwner ? 10 : 0 }}>{review.review_text}</p>}
+
+      {/* Public owner reply — visible to everyone */}
+      {review.owner_reply && !replying && (
+        <div style={{ background: '#F0FAF6', border: '1px solid #C8EDE0', borderRadius: 10, padding: '10px 14px', marginTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#085041' }}>🏢 Business reply</span>
+            <span style={{ fontSize: 11, color: '#888780' }}>{new Date(review.owner_reply_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+          </div>
+          <p style={{ fontSize: 13, color: '#2C2C2A', lineHeight: 1.6 }}>{review.owner_reply}</p>
+          {isOwner && (
+            <button className="link-btn" style={{ margin: '6px 0 0', fontSize: 12 }} onClick={() => { setReplying(true); setReplyText(review.owner_reply) }}>
+              ✏️ Edit reply
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Owner reply form — only owner sees this */}
+      {isOwner && !review.owner_reply && !replying && (
+        <button className="link-btn" style={{ margin: '8px 0 0', fontSize: 12, color: '#1D9E75' }} onClick={() => setReplying(true)}>
+          💬 Reply to this review
+        </button>
+      )}
+
+      {isOwner && replying && (
+        <div style={{ marginTop: 10 }}>
+          <textarea
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            rows={2}
+            placeholder="Write a public reply to this review..."
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #E5E3DC', fontSize: 13, fontFamily: 'inherit', marginBottom: 8 }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn-primary" style={{ width: 'auto', padding: '7px 18px', fontSize: 13 }} onClick={saveReply} disabled={saving}>
+              {saving ? 'Saving…' : 'Post reply'}
+            </button>
+            <button className="btn-ghost-small" onClick={() => { setReplying(false); setReplyText(review.owner_reply || '') }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

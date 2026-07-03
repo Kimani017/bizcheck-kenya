@@ -32,7 +32,7 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
 
   async function loadData() {
     const [revRes, viewRes, bizRes] = await Promise.all([
-      supabase.from('reviews').select('*, profiles(name)').eq('business_id', biz.id).order('created_at', { ascending: false }),
+      supabase.from('reviews').select('*, profiles(name, username)').eq('business_id', biz.id).order('created_at', { ascending: false }),
       supabase.from('profile_views').select('*').eq('business_id', biz.id).order('created_at', { ascending: false }).limit(100),
       supabase.from('businesses').select('*').eq('id', biz.id).single(),
     ])
@@ -185,11 +185,21 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
           {reviews.map((r) => (
             <div key={r.id} className="review-card">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <div style={{ fontWeight: 500, fontSize: 14 }}>{r.profiles?.name || 'Anonymous'}</div>
+                <div style={{ fontWeight: 500, fontSize: 14 }}>@{r.profiles?.username || r.profiles?.name || 'user'}</div>
                 <StarDisplay rating={r.rating} />
               </div>
               {r.review_text && <p style={{ fontSize: 13, color: '#5F5E5A' }}>{r.review_text}</p>}
               <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+              {r.owner_reply ? (
+                <div style={{ background: '#F0FAF6', border: '1px solid #C8EDE0', borderRadius: 8, padding: '8px 12px', marginTop: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#085041' }}>🏢 Your reply: </span>
+                  <span style={{ fontSize: 12, color: '#2C2C2A' }}>{r.owner_reply}</span>
+                </div>
+              ) : (
+                <div style={{ marginTop: 6, fontSize: 12, color: '#EF9F27' }}>
+                  ⚠ Not replied yet — visit this business's public page to respond
+                </div>
+              )}
             </div>
           ))}
         </div>
