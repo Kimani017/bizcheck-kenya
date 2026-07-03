@@ -49,48 +49,61 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
 
   const isOwner = currentUser?.id === profileUserId
   const canSeePrivate = isOwner || isAdmin
-  const theme = THEMES[activeTab]
+  const theme = THEMES[activeTab] || THEMES.business
 
-  useEffect(() => { loadAll() }, [profileUserId])
+  useEffect(() => {
+    if (profileUserId) loadAll()
+  }, [profileUserId, currentUser?.id])
 
   async function loadAll() {
     setLoading(true)
-    const { data: profileData } = await supabase
-      .from('profiles').select('*').eq('id', profileUserId).single()
-    setProfile(profileData)
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles').select('*').eq('id', profileUserId).single()
 
-    // Fetch both approved businesses and pending submissions
-    const [bizRes, subRes] = await Promise.all([
-      supabase.from('businesses').select('*').eq('owner_id', profileUserId),
-      supabase.from('submissions').select('*').eq('submitter_id', profileUserId).eq('status', 'pending'),
-    ])
+      if (profileError || !profileData) {
+        setLoading(false)
+        return
+      }
+      setProfile(profileData)
 
-    // Merge them — submissions show as pending cards
-    const approvedBiz = (bizRes.data || [])
-    const pendingSubs = (subRes.data || []).map(s => ({
-      ...s,
-      status: 'pending',
-      trust_score: 0,
-      legit_votes: 0,
-      scam_votes: 0,
-      view_count: 0,
-      review_count: 0,
-      avg_rating: 0,
-      is_submission: true, // flag to distinguish
-    }))
-    setBusinesses([...approvedBiz, ...pendingSubs])
-
-    if (canSeePrivate) {
-      const [revRes, voteRes, viewRes] = await Promise.all([
-        supabase.from('reviews').select('*, businesses(name, category)').eq('reviewer_id', profileUserId).order('created_at', { ascending: false }),
-        supabase.from('votes').select('*, businesses(name)').eq('user_id', profileUserId).order('created_at', { ascending: false }),
-        supabase.from('profile_views').select('*, businesses(name, category, status)').eq('viewer_id', profileUserId).order('created_at', { ascending: false }).limit(50),
+      // Fetch businesses and submissions in parallel
+      const [bizRes, subRes] = await Promise.all([
+        supabase.from('businesses').select('*').eq('owner_id', profileUserId),
+        supabase.from('submissions').select('*').eq('submitter_id', profileUserId).eq('status', 'pending'),
       ])
-      setReviews(revRes.data || [])
-      setVotes(voteRes.data || [])
-      setViewedBusinesses(viewRes.data || [])
+
+      const approvedBiz = (bizRes.data || [])
+      const pendingSubs = (subRes.data || []).map(s => ({
+        ...s,
+        status: 'pending',
+        trust_score: 0,
+        legit_votes: 0,
+        scam_votes: 0,
+        view_count: 0,
+        review_count: 0,
+        avg_rating: 0,
+        is_submission: true,
+      }))
+      setBusinesses([...approvedBiz, ...pendingSubs])
+
+      // Only load private data if user has permission
+      const shouldLoadPrivate = (currentUser?.id === profileUserId) || isAdmin
+      if (shouldLoadPrivate) {
+        const [revRes, voteRes, viewRes] = await Promise.all([
+          supabase.from('reviews').select('*, businesses(name, category)').eq('reviewer_id', profileUserId).order('created_at', { ascending: false }),
+          supabase.from('votes').select('*, businesses(name)').eq('user_id', profileUserId).order('created_at', { ascending: false }),
+          supabase.from('profile_views').select('*, businesses(name, category, status)').eq('viewer_id', profileUserId).order('created_at', { ascending: false }).limit(30),
+        ])
+        setReviews(revRes.data || [])
+        setVotes(voteRes.data || [])
+        setViewedBusinesses(viewRes.data || [])
+      }
+    } catch (err) {
+      console.error('UserProfile loadAll error:', err)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   if (loading) return (
@@ -104,8 +117,8 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
   const visibleTabs = canSeePrivate ? TABS : [TABS[0]]
 
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' }}>
-      <div style={{ padding: '16px 24px' }}>
+    <div style={{ maxWidth: 720, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', overflowX: 'hidden' }}>
+      <div style={{ padding: '12px 16px' }}>
         <button className="link-btn" onClick={onBack}>← Back</button>
       </div>
 
@@ -138,7 +151,7 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
       </div>
 
       {/* TABS — overlapping the banner */}
-      <div style={{ margin: '-48px 24px 0', position: 'relative', zIndex: 10 }}>
+      <div style={{ margin: '-48px 12px 0', position: 'relative', zIndex: 10 }}>
         <div style={{
           background: '#fff',
           borderRadius: 16,
@@ -429,7 +442,7 @@ function BusinessForm({ currentUser, theme, onSubmitted }) {
 
       {error && <div className="form-error" style={{ marginBottom: 14 }}>{error}</div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 14 }}>
         <div>
           <label style={labelStyle}>Business name *</label>
           <input style={inputStyle} value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="e.g. Nairobi Tech Hub" />
@@ -452,7 +465,7 @@ function BusinessForm({ currentUser, theme, onSubmitted }) {
         <textarea style={{ ...inputStyle, resize: 'vertical' }} value={form.description} onChange={(e) => update('description', e.target.value)} rows={3} placeholder="Tell customers what you sell and how you operate..." />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 14 }}>
         <div>
           <label style={labelStyle}>Phone number</label>
           <input style={inputStyle} value={form.phone} onChange={(e) => update('phone', e.target.value)} placeholder="0712 345 678" />
@@ -463,7 +476,7 @@ function BusinessForm({ currentUser, theme, onSubmitted }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, marginBottom: 20 }}>
         <div>
           <label style={labelStyle}>Facebook</label>
           <input style={inputStyle} value={form.fb_handle} onChange={(e) => update('fb_handle', e.target.value)} placeholder="@yourpage" />
