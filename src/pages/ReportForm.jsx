@@ -6,6 +6,7 @@ export default function ReportForm({ onDone, prefill }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
+  const [searchTimeout, setSearchTimeout] = useState(null)
   const [selectedBusiness, setSelectedBusiness] = useState(prefill || null)
   const [form, setForm] = useState({
     business_name: prefill?.name || '',
@@ -21,11 +22,18 @@ export default function ReportForm({ onDone, prefill }) {
 
   function update(field, value) { setForm(f => ({ ...f, [field]: value })) }
 
-  async function handleSearch() {
-    if (!searchQuery.trim()) return
+  async function liveSearch(value) {
+    if (searchTimeout) clearTimeout(searchTimeout)
+    if (!value.trim()) { setSearchResults([]); return }
+    const timeout = setTimeout(() => handleSearch(value), 300)
+    setSearchTimeout(timeout)
+  }
+
+  async function handleSearch(q = searchQuery) {
+    if (!q.trim()) return
     setSearching(true)
     setSearchResults([])
-    const q = searchQuery.trim()
+    q = q.trim()
 
     // Try RPC search first
     const { data: rpcData, error: rpcError } = await supabase.rpc('search_businesses', { query: q })
@@ -103,7 +111,7 @@ export default function ReportForm({ onDone, prefill }) {
             type="text"
             placeholder="Search business name, phone, M-Pesa till, @handle…"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); liveSearch(e.target.value) }}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           />
           <button onClick={handleSearch}>{searching ? 'Searching…' : 'Search'}</button>

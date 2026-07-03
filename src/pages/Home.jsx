@@ -7,6 +7,7 @@ export default function Home({ onSelectBusiness, goToReport }) {
   const [recent, setRecent] = useState([])
   const [flagged, setFlagged] = useState([])
   const [loading, setLoading] = useState(false)
+  const [searchTimeout, setSearchTimeout] = useState(null)
 
   useEffect(() => {
     loadLists()
@@ -31,13 +32,30 @@ export default function Home({ onSelectBusiness, goToReport }) {
     setFlagged(flaggedData || [])
   }
 
-  async function handleSearch() {
-    if (!query.trim()) return
+  async function handleSearch(overrideQuery) {
+    const q = (overrideQuery || query).trim()
+    if (!q) return
     setLoading(true)
-    const { data, error } = await supabase.rpc('search_businesses', { query })
+
+    // Try RPC first
+    const { data: rpcData, error: rpcError } = await supabase.rpc('search_businesses', { query: q })
+
+    if (!rpcError && rpcData && rpcData.length > 0) {
+      setResults(rpcData)
+      setLoading(false)
+      return
+    }
+
+    // Fallback: direct ilike query
+    const { data: fallbackData } = await supabase
+      .from('businesses')
+      .select('*')
+      .in('status', ['verified', 'flagged'])
+      .or(`name.ilike.%${q}%,phone.ilike.%${q}%,mpesa_till.ilike.%${q}%,fb_handle.ilike.%${q}%,tiktok_handle.ilike.%${q}%`)
+      .order('trust_score', { ascending: false })
+
     setLoading(false)
-    if (error) { console.error(error); setResults([]); return }
-    setResults(data || [])
+    setResults(fallbackData || [])
   }
 
   return (
@@ -53,7 +71,13 @@ export default function Home({ onSelectBusiness, goToReport }) {
             type="text"
             placeholder="Business name, 0712 345 678, @seller_name…"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              if (searchTimeout) clearTimeout(searchTimeout)
+              if (!e.target.value.trim()) { setResults(null); return }
+              const t = setTimeout(() => handleSearch(e.target.value), 300)
+              setSearchTimeout(t)
+            }}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           />
           <button onClick={handleSearch}>{loading ? 'Searching…' : 'Check'}</button>
