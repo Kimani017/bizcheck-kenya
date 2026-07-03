@@ -68,9 +68,15 @@ export default function Sidebar({ page, navigate, openUserProfile, isAdmin, them
         onMouseEnter={() => !isMobile && setHovered(true)}
         onMouseLeave={() => !isMobile && setHovered(false)}
         style={{
-          position: 'fixed', top: 0, left: 0, height: '100vh',
+          position: 'fixed',
+          top: isMobile ? 0 : 12,
+          left: isMobile ? 0 : 12,
+          height: isMobile ? '100vh' : 'calc(100vh - 24px)',
           width: expanded ? 220 : (isMobile ? 0 : 64),
-          background: 'var(--nav-bg)', borderRight: '1px solid var(--border)',
+          background: 'var(--nav-bg)',
+          border: isMobile ? 'none' : '1px solid var(--border)',
+          borderRadius: isMobile ? 0 : 16,
+          boxShadow: isMobile ? 'none' : '0 4px 20px rgba(0,0,0,0.08)',
           display: 'flex', flexDirection: 'column',
           transition: 'width 0.2s ease',
           overflow: 'hidden', zIndex: 160,
@@ -82,7 +88,7 @@ export default function Sidebar({ page, navigate, openUserProfile, isAdmin, them
           onClick={() => handleNav('home')}
           style={{
             display: 'flex', alignItems: 'center', gap: 10,
-            padding: '18px 20px', cursor: 'pointer',
+            padding: '18px 18px', cursor: 'pointer',
             borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
           }}
         >

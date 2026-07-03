@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 import Sidebar from './pages/Sidebar'
+import TopNav from './pages/TopNav'
 import Landing from './pages/Landing'
 import Home from './pages/Home'
 import Directory from './pages/Directory'
@@ -255,20 +256,30 @@ function App() {
   // Logged in — sidebar layout
   return (
     <div className="app">
-      <Sidebar
-        page={page}
-        navigate={navigate}
-        openUserProfile={() => openUserProfile(user.id)}
-        isAdmin={isAdmin}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        handleLogout={handleLogout}
-        onExpandChange={setSidebarExpanded}
-      />
+      {isMobileView ? (
+        <Sidebar
+          page={page}
+          navigate={navigate}
+          openUserProfile={() => openUserProfile(user.id)}
+          isAdmin={isAdmin}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          handleLogout={handleLogout}
+          onExpandChange={setSidebarExpanded}
+        />
+      ) : (
+        <TopNav
+          page={page}
+          navigate={navigate}
+          openUserProfile={() => openUserProfile(user.id)}
+          isAdmin={isAdmin}
+          handleLogout={handleLogout}
+        />
+      )}
 
       <div
         className="main-content"
-        style={{ marginLeft: isMobileView ? 0 : (sidebarExpanded ? 220 : 64) }}
+        style={{ marginLeft: 0 }}
       >
         {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
         {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} />}
