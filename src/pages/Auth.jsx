@@ -165,8 +165,8 @@ export default function Auth({ onAuthed, initialMode }) {
                 style={{ paddingLeft: 28 }}
                 onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
               />
-              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#888780', fontSize: 14 }}>@</span>
-              {checkingUsername && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#888780' }}>checking…</span>}
+              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 14 }}>@</span>
+              {checkingUsername && <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--text-muted)' }}>checking…</span>}
               {!checkingUsername && usernameAvailable === true && username.length >= 3 && (
                 <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#1D9E75', fontWeight: 600 }}>✓ Available</span>
               )}
@@ -174,7 +174,7 @@ export default function Auth({ onAuthed, initialMode }) {
                 <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#E24B4A', fontWeight: 600 }}>✗ Taken</span>
               )}
             </div>
-            <div style={{ fontSize: 12, color: '#888780', marginTop: 4 }}>Only letters, numbers and underscores. Min 3 characters.</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Only letters, numbers and underscores. Min 3 characters.</div>
           </div>
 
           <div className="form-group">
@@ -232,7 +232,7 @@ export default function Auth({ onAuthed, initialMode }) {
         {mode === 'login' && (
           <>
             <button className="link-btn" onClick={() => switchMode('signup')}>Don't have an account? Sign up →</button>
-            <button className="link-btn" style={{ color: '#888780' }} onClick={() => switchMode('forgot')}>Forgot your password?</button>
+            <button className="link-btn" style={{ color: 'var(--text-muted)' }} onClick={() => switchMode('forgot')}>Forgot your password?</button>
           </>
         )}
         {mode === 'signup' && <button className="link-btn" onClick={() => switchMode('login')}>Already have an account? Log in →</button>}

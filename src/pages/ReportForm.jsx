@@ -120,7 +120,7 @@ export default function ReportForm({ onDone, prefill }) {
         {/* SEARCH RESULTS */}
         {searchResults.length > 0 && (
           <div style={{ marginBottom: 20 }}>
-            <p style={{ fontSize: 13, color: '#5F5E5A', marginBottom: 12 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
               Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} — select the business you want to report:
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -131,24 +131,24 @@ export default function ReportForm({ onDone, prefill }) {
                     key={b.id}
                     onClick={() => selectBusiness(b)}
                     style={{
-                      background: '#fff', border: `1.5px solid ${b.status === 'flagged' ? '#F7C1C1' : '#E5E3DC'}`,
+                      background: 'var(--surface)', border: `1.5px solid ${b.status === 'flagged' ? '#F7C1C1' : 'var(--border)'}`,
                       borderRadius: 12, padding: '14px 16px', cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                       transition: 'border-color 0.15s, box-shadow 0.15s',
                     }}
                     onMouseEnter={e => e.currentTarget.style.borderColor = '#E24B4A'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = b.status === 'flagged' ? '#F7C1C1' : '#E5E3DC'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = b.status === 'flagged' ? '#F7C1C1' : 'var(--border)'}
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 600, fontSize: 15, color: '#2C2C2A' }}>{b.name}</span>
+                        <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text)' }}>{b.name}</span>
                         <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: b.status === 'verified' ? '#E1F5EE' : '#FCEBEB', color: b.status === 'verified' ? '#085041' : '#A32D2D' }}>
                           {b.status === 'verified' ? '✓ Verified' : '⚠ Flagged'}
                         </span>
                       </div>
-                      <div style={{ fontSize: 12, color: '#888780' }}>{b.category}{b.phone ? ` · ${b.phone}` : ''}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{b.category}{b.phone ? ` · ${b.phone}` : ''}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                        <div style={{ flex: 1, height: 4, borderRadius: 2, background: '#F1EFE8' }}>
+                        <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'var(--hover-bg)' }}>
                           <div style={{ height: 4, borderRadius: 2, background: trustColor, width: `${b.trust_score}%` }} />
                         </div>
                         <span style={{ fontSize: 11, color: trustColor, fontWeight: 600, flexShrink: 0 }}>{b.trust_score}% trust</span>
@@ -170,12 +170,12 @@ export default function ReportForm({ onDone, prefill }) {
             <p style={{ color: '#854D0E', fontSize: 14, marginBottom: 8 }}>
               ⚠ No results found for "<strong>{searchQuery}</strong>"
             </p>
-            <p style={{ color: '#5F5E5A', fontSize: 13, marginBottom: 12 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 }}>
               This business isn't on BizCheck yet. You can still file a report and our team will investigate.
             </p>
             <button
               onClick={useNewForm}
-              style={{ padding: '9px 20px', background: '#E24B4A', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              style={{ padding: '9px 20px', background: '#E24B4A', color: 'var(--surface)', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
               🚩 Report this scammer anyway →
             </button>
@@ -183,7 +183,7 @@ export default function ReportForm({ onDone, prefill }) {
         )}
 
         {/* SKIP SEARCH */}
-        <button className="link-btn" style={{ color: '#888780', fontSize: 13 }} onClick={useNewForm}>
+        <button className="link-btn" style={{ color: 'var(--text-muted)', fontSize: 13 }} onClick={useNewForm}>
           Skip search — report a scammer not on BizCheck →
         </button>
       </div>
@@ -222,7 +222,7 @@ export default function ReportForm({ onDone, prefill }) {
           onChange={(e) => update('business_name', e.target.value)}
           placeholder="Name they used"
           readOnly={!!selectedBusiness}
-          style={selectedBusiness ? { background: '#F1EFE8', color: '#5F5E5A' } : {}}
+          style={selectedBusiness ? { background: 'var(--hover-bg)', color: 'var(--text-muted)' } : {}}
         />
       </div>
 

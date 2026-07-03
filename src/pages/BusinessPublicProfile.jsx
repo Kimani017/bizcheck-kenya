@@ -7,7 +7,7 @@ function StarDisplay({ rating, size = 16 }) {
   return (
     <span>
       {STARS.map((s) => (
-        <span key={s} style={{ color: s <= rating ? '#F5A623' : '#E5E3DC', fontSize: size }}>★</span>
+        <span key={s} style={{ color: s <= rating ? '#F5A623' : 'var(--border)', fontSize: size }}>★</span>
       ))}
     </span>
   )
@@ -109,7 +109,7 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
       {/* HEADER */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 style={{ fontSize: 24, marginBottom: 4, color: '#1A1A18', fontWeight: 700 }}>{biz.name}</h2>
+          <h2 style={{ fontSize: 24, marginBottom: 4, color: 'var(--text-strong)', fontWeight: 700 }}>{biz.name}</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span className="badge badge-verified" style={{ fontSize: 12 }}>{biz.category}</span>
             {biz.location && <span className="muted">📍 {biz.location}</span>}
@@ -176,7 +176,7 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
             {STARS.map((s) => (
               <span
                 key={s}
-                style={{ fontSize: 28, cursor: 'pointer', color: s <= (hoverRating || rating) ? '#F5A623' : '#E5E3DC' }}
+                style={{ fontSize: 28, cursor: 'pointer', color: s <= (hoverRating || rating) ? '#F5A623' : 'var(--border)' }}
                 onClick={() => setRating(s)}
                 onMouseEnter={() => setHoverRating(s)}
                 onMouseLeave={() => setHoverRating(0)}
@@ -260,7 +260,7 @@ function ReviewCard({ review, replies, currentUser, businessId, ownerId, onReply
         <StarDisplay rating={review.rating} size={14} />
       </div>
 
-      {review.review_text && <p style={{ fontSize: 14, color: '#2C2C2A', lineHeight: 1.6, marginBottom: replies.length > 0 ? 10 : 0 }}>{review.review_text}</p>}
+      {review.review_text && <p style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.6, marginBottom: replies.length > 0 ? 10 : 0 }}>{review.review_text}</p>}
 
       {/* Rollup/rolldown toggle for the reply thread */}
       {replies.length > 0 && (
@@ -286,18 +286,18 @@ function ReviewCard({ review, replies, currentUser, businessId, ownerId, onReply
               <div
                 key={rep.id}
                 style={{
-                  background: isBizOwner ? '#F0FAF6' : '#F9F8F5',
-                  border: `1px solid ${isBizOwner ? '#C8EDE0' : '#E5E3DC'}`,
+                  background: isBizOwner ? '#F0FAF6' : 'var(--surface-2)',
+                  border: `1px solid ${isBizOwner ? '#C8EDE0' : 'var(--border)'}`,
                   borderRadius: 8, padding: '8px 12px',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: isBizOwner ? '#085041' : '#5F5E5A' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isBizOwner ? '#085041' : 'var(--text-muted)' }}>
                     {isBizOwner ? '🏢 Business reply' : `💬 @${rep.profiles?.username || 'user'}`}
                   </span>
-                  <span style={{ fontSize: 10, color: '#888780' }}>{new Date(rep.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{new Date(rep.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                 </div>
-                <p style={{ fontSize: 13, color: '#2C2C2A' }}>{rep.message}</p>
+                <p style={{ fontSize: 13, color: 'var(--text)' }}>{rep.message}</p>
               </div>
             )
           })}
@@ -358,11 +358,11 @@ function ClaimForm({ business, currentUser, onSubmitted }) {
       <h3 style={{ marginBottom: 4 }}>Claim this business</h3>
       <p className="muted" style={{ marginBottom: 12 }}>Submit your details and our admin team will verify your ownership within 24hrs.</p>
       <div className="form-group">
-        <label style={{ fontSize: 13, color: '#5F5E5A', marginBottom: 6, display: 'block', fontWeight: 500 }}>Your ID number</label>
+        <label style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6, display: 'block', fontWeight: 500 }}>Your ID number</label>
         <input value={idNumber} onChange={(e) => setIdNumber(e.target.value)} placeholder="National ID or Business registration number" style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #E5E3DC', fontSize: 14 }} />
       </div>
       <div className="form-group">
-        <label style={{ fontSize: 13, color: '#5F5E5A', marginBottom: 6, display: 'block', fontWeight: 500 }}>Why are you claiming this business?</label>
+        <label style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6, display: 'block', fontWeight: 500 }}>Why are you claiming this business?</label>
         <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} placeholder="e.g. I am the registered owner of this business..." style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #E5E3DC', fontSize: 14, fontFamily: 'inherit' }} />
       </div>
       <button className="btn-primary" style={{ width: 'auto', padding: '10px 24px' }} onClick={submit} disabled={submitting}>

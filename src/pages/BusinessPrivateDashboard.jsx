@@ -5,7 +5,7 @@ function StarDisplay({ rating, size = 14 }) {
   return (
     <span>
       {[1,2,3,4,5].map((s) => (
-        <span key={s} style={{ color: s <= rating ? '#F5A623' : '#E5E3DC', fontSize: size }}>★</span>
+        <span key={s} style={{ color: s <= rating ? '#F5A623' : 'var(--border)', fontSize: size }}>★</span>
       ))}
     </span>
   )
@@ -91,17 +91,17 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
             Business name, category and location are locked after verification. Contact support to change these.
           </p>
 
-          <div style={{ background: '#F1EFE8', borderRadius: 8, padding: '12px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ background: 'var(--hover-bg)', borderRadius: 8, padding: '12px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <span style={{ color: '#888780' }}>🔒 Business name</span>
+              <span style={{ color: 'var(--text-muted)' }}>🔒 Business name</span>
               <span style={{ fontWeight: 500 }}>{biz.name}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <span style={{ color: '#888780' }}>🔒 Category</span>
+              <span style={{ color: 'var(--text-muted)' }}>🔒 Category</span>
               <span style={{ fontWeight: 500 }}>{biz.category}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <span style={{ color: '#888780' }}>🔒 Location</span>
+              <span style={{ color: 'var(--text-muted)' }}>🔒 Location</span>
               <span style={{ fontWeight: 500 }}>{biz.location || '—'}</span>
             </div>
           </div>
@@ -115,7 +115,7 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
             ['instagram_handle', 'Instagram handle', '@yourhandle'],
           ].map(([field, label, placeholder]) => (
             <div className="form-group" key={field}>
-              <label style={{ fontSize: 13, color: '#5F5E5A', marginBottom: 6, display: 'block', fontWeight: 500 }}>{label}</label>
+              <label style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6, display: 'block', fontWeight: 500 }}>{label}</label>
               {field === 'description' ? (
                 <textarea value={form[field]} onChange={(e) => setForm(f => ({ ...f, [field]: e.target.value }))} placeholder={placeholder} rows={3} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #E5E3DC', fontSize: 14, fontFamily: 'inherit' }} />
               ) : (
@@ -235,7 +235,7 @@ function ReviewWithThread({ review, existingReplies, currentUser, businessId, on
         <div style={{ fontWeight: 500, fontSize: 14 }}>@{review.profiles?.username || review.profiles?.name || 'user'}</div>
         <StarDisplay rating={review.rating} />
       </div>
-      {review.review_text && <p style={{ fontSize: 13, color: '#5F5E5A' }}>{review.review_text}</p>}
+      {review.review_text && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{review.review_text}</p>}
       <div className="muted" style={{ fontSize: 11, marginTop: 4, marginBottom: existingReplies.length > 0 ? 10 : 0 }}>
         {new Date(review.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
       </div>
@@ -261,14 +261,14 @@ function ReviewWithThread({ review, existingReplies, currentUser, businessId, on
           {existingReplies.map((rep) => {
             const isMe = rep.author_id === currentUser.id
             return (
-              <div key={rep.id} style={{ background: isMe ? '#F0FAF6' : '#F9F8F5', border: `1px solid ${isMe ? '#C8EDE0' : '#E5E3DC'}`, borderRadius: 8, padding: '8px 12px' }}>
+              <div key={rep.id} style={{ background: isMe ? '#F0FAF6' : 'var(--surface-2)', border: `1px solid ${isMe ? '#C8EDE0' : 'var(--border)'}`, borderRadius: 8, padding: '8px 12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: isMe ? '#085041' : '#5F5E5A' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isMe ? '#085041' : 'var(--text-muted)' }}>
                     {isMe ? '🏢 You (business)' : `💬 @${rep.profiles?.username || 'user'}`}
                   </span>
-                  <span style={{ fontSize: 10, color: '#888780' }}>{new Date(rep.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{new Date(rep.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}</span>
                 </div>
-                <p style={{ fontSize: 12, color: '#2C2C2A' }}>{rep.message}</p>
+                <p style={{ fontSize: 12, color: 'var(--text)' }}>{rep.message}</p>
               </div>
             )
           })}

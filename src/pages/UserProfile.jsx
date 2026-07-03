@@ -16,8 +16,8 @@ const THEMES = {
     accentDark: '#085041',
     accentLight: '#E1F5EE',
     accentBorder: '#9FE1CB',
-    bg: '#F0FAF6',
-    cardBorder: '#C8EDE0',
+    bg: 'var(--surface-2)',
+    cardBorder: 'var(--border)',
     text: '#085041',
     tabActive: '#1D9E75',
     statBg: 'linear-gradient(135deg, #1D9E75, #085041)',
@@ -29,7 +29,7 @@ const THEMES = {
     accentLight: '#E0F7FA',
     accentBorder: '#80DEEA',
     bg: '#F0FBFC',
-    cardBorder: '#B2EBF2',
+    cardBorder: 'var(--border)',
     text: '#0D6E82',
     tabActive: '#17A2B8',
     statBg: 'linear-gradient(135deg, #17A2B8, #0D6E82)',
@@ -40,8 +40,8 @@ const THEMES = {
     accentDark: '#37474F',
     accentLight: '#ECEFF1',
     accentBorder: '#B0BEC5',
-    bg: '#F5F6F7',
-    cardBorder: '#CFD8DC',
+    bg: 'var(--surface-2)',
+    cardBorder: 'var(--border)',
     text: '#37474F',
     tabActive: '#546E7A',
     statBg: 'linear-gradient(135deg, #546E7A, #37474F)',
@@ -106,7 +106,7 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ width: 40, height: 40, border: '3px solid #E5E3DC', borderTop: '3px solid #1D9E75', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }}></div>
-        <p style={{ color: '#888780', fontSize: 14 }}>Loading profile…</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading profile…</p>
       </div>
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
@@ -124,21 +124,21 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
       <div style={{ background: T.gradient, padding: '0 0 72px', transition: 'background 0.4s', position: 'relative' }}>
         {/* Back button */}
         <div style={{ padding: '14px 18px' }}>
-          <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', borderRadius: 20, padding: '6px 14px', fontSize: 13, cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
+          <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'var(--surface)', borderRadius: 20, padding: '6px 14px', fontSize: 13, cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
             ← Back
           </button>
         </div>
 
         {/* Avatar + name */}
         <div style={{ padding: '8px 24px 0', display: 'flex', alignItems: 'center', gap: 18 }}>
-          <div style={{ width: 70, height: 70, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: '3px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: '#fff', flexShrink: 0, backdropFilter: 'blur(4px)' }}>
+          <div style={{ width: 70, height: 70, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: '3px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: 'var(--surface)', flexShrink: 0, backdropFilter: 'blur(4px)' }}>
             {initial}
           </div>
           <div>
-            <div style={{ color: '#fff', fontSize: 20, fontWeight: 700, marginBottom: 3 }}>@{profile.username || 'user'}</div>
+            <div style={{ color: 'var(--surface)', fontSize: 20, fontWeight: 700, marginBottom: 3 }}>@{profile.username || 'user'}</div>
             <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>{profile.name} · Since {joinDate}</div>
             {profile.role === 'admin' && (
-              <span style={{ marginTop: 6, display: 'inline-block', background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20, letterSpacing: '0.5px' }}>ADMIN</span>
+              <span style={{ marginTop: 6, display: 'inline-block', background: 'rgba(255,255,255,0.2)', color: 'var(--surface)', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20, letterSpacing: '0.5px' }}>ADMIN</span>
             )}
           </div>
         </div>
@@ -150,10 +150,10 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
 
       {/* ── FLOATING CARD ── */}
       <div style={{ margin: '-52px 14px 0', position: 'relative', zIndex: 10 }}>
-        <div style={{ background: '#fff', borderRadius: 18, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--surface)', borderRadius: 18, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', overflow: 'hidden' }}>
 
           {/* TAB ROW */}
-          <div style={{ display: 'flex', background: '#fff' }}>
+          <div style={{ display: 'flex', background: 'var(--surface)' }}>
             {visibleTabs.map((tab) => {
               const isActive = activeTab === tab.id
               const tabTheme = THEMES[tab.id]
@@ -164,9 +164,9 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
                   style={{
                     flex: 1, padding: '15px 6px 12px',
                     border: 'none', cursor: 'pointer',
-                    background: isActive ? tabTheme.accentLight : '#fff',
+                    background: isActive ? tabTheme.accentLight : 'var(--surface)',
                     borderBottom: isActive ? `3px solid ${tabTheme.accent}` : '3px solid transparent',
-                    color: isActive ? tabTheme.accentDark : '#888780',
+                    color: isActive ? tabTheme.accentDark : 'var(--text-muted)',
                     fontSize: 12, fontWeight: 700,
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                     transition: 'all 0.2s',
@@ -186,11 +186,11 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
                 <div>
                   <h3 style={{ color: T.accentDark, fontSize: 17, marginBottom: 2 }}>My Businesses</h3>
-                  <p style={{ color: '#888780', fontSize: 12 }}>Businesses you own on BizCheck</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Businesses you own on BizCheck</p>
                 </div>
                 <button
                   onClick={() => setShowBusinessForm(!showBusinessForm)}
-                  style={{ padding: '8px 16px', background: showBusinessForm ? '#fff' : T.accent, color: showBusinessForm ? T.accent : '#fff', border: `1.5px solid ${T.accent}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                  style={{ padding: '8px 16px', background: showBusinessForm ? 'var(--surface)' : T.accent, color: showBusinessForm ? T.accent : 'var(--surface)', border: `1.5px solid ${T.accent}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
                 >
                   {showBusinessForm ? '✕ Cancel' : '+ List a business'}
                 </button>
@@ -199,11 +199,11 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
               {showBusinessForm && <BusinessForm currentUser={currentUser} theme={T} onSubmitted={() => { setShowBusinessForm(false); loadAll() }} />}
 
               {businesses.length === 0 && !showBusinessForm ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px', background: '#fff', borderRadius: 14, border: `1.5px dashed ${T.accentBorder}` }}>
+                <div style={{ textAlign: 'center', padding: '40px 20px', background: 'var(--surface)', borderRadius: 14, border: `1.5px dashed ${T.accentBorder}` }}>
                   <div style={{ fontSize: 48, marginBottom: 12 }}>🏢</div>
                   <h4 style={{ color: T.accentDark, marginBottom: 8, fontSize: 15 }}>No businesses listed yet</h4>
-                  <p style={{ color: '#888780', fontSize: 13, marginBottom: 18 }}>List your business to get verified and reach more customers across Kenya.</p>
-                  <button onClick={() => setShowBusinessForm(true)} style={{ padding: '10px 24px', background: T.accent, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 18 }}>List your business to get verified and reach more customers across Kenya.</p>
+                  <button onClick={() => setShowBusinessForm(true)} style={{ padding: '10px 24px', background: T.accent, color: 'var(--surface)', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                     List your business →
                   </button>
                 </div>
@@ -232,7 +232,7 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
             <div style={{ background: T.bg, padding: 20 }}>
               <div style={{ marginBottom: 18 }}>
                 <h3 style={{ color: T.accentDark, fontSize: 17, marginBottom: 2 }}>Personal Information</h3>
-                <p style={{ color: '#888780', fontSize: 12 }}>Private — visible only to you and admins</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Private — visible only to you and admins</p>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -245,7 +245,7 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
                   { icon: '📅', label: 'Date joined', value: joinDate },
                   { icon: '✅', label: 'Status', value: profile.is_banned ? 'Banned' : 'Active', isBadge: true, badgeOk: !profile.is_banned },
                 ].map(({ icon, label, value, isBadge, badgeOk }) => (
-                  <div key={label} style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', border: `1px solid ${T.cardBorder}`, display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div key={label} style={{ background: 'var(--surface)', borderRadius: 12, padding: '12px 16px', border: `1px solid ${T.cardBorder}`, display: 'flex', alignItems: 'center', gap: 14 }}>
                     <div style={{ width: 40, height: 40, borderRadius: 10, background: T.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
                       {icon}
                     </div>
@@ -254,7 +254,7 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
                       {isBadge ? (
                         <span style={{ display: 'inline-block', padding: '2px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: badgeOk ? '#E1F5EE' : '#FCEBEB', color: badgeOk ? '#085041' : '#A32D2D' }}>{value}</span>
                       ) : (
-                        <div style={{ fontSize: 14, color: '#2C2C2A', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value || '—'}</div>
+                        <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value || '—'}</div>
                       )}
                     </div>
                   </div>
@@ -268,7 +268,7 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
             <div style={{ background: T.bg, padding: 20 }}>
               <div style={{ marginBottom: 18 }}>
                 <h3 style={{ color: T.accentDark, fontSize: 17, marginBottom: 2 }}>Activity History</h3>
-                <p style={{ color: '#888780', fontSize: 12 }}>Your reviews, votes and businesses you've viewed</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Your reviews, votes and businesses you've viewed</p>
               </div>
 
               {/* STAT CARDS */}
@@ -279,7 +279,7 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
                   { num: votes.filter(v => v.vote_type === 'scam').length, label: 'Scam votes', icon: '👎' },
                   { num: viewedBusinesses.length, label: 'Profiles viewed', icon: '👁️' },
                 ].map(({ num, label, icon }) => (
-                  <div key={label} style={{ background: T.statBg, borderRadius: 14, padding: '16px 14px', color: '#fff', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div key={label} style={{ background: T.statBg, borderRadius: 14, padding: '16px 14px', color: 'var(--surface)', display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ fontSize: 24 }}>{icon}</div>
                     <div>
                       <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1 }}>{num}</div>
@@ -293,13 +293,13 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
               {reviews.length > 0 && (
                 <Section title="Reviews written" count={reviews.length} icon="⭐" theme={T}>
                   {reviews.map((r) => (
-                    <div key={r.id} style={{ background: '#fff', borderRadius: 10, padding: '12px 14px', border: `1px solid ${T.cardBorder}`, marginBottom: 8 }}>
+                    <div key={r.id} style={{ background: 'var(--surface)', borderRadius: 10, padding: '12px 14px', border: `1px solid ${T.cardBorder}`, marginBottom: 8 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 600, fontSize: 14, color: '#2C2C2A' }}>{r.businesses?.name || 'Unknown'}</span>
+                        <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{r.businesses?.name || 'Unknown'}</span>
                         <span style={{ color: '#F5A623', fontSize: 14, flexShrink: 0 }}>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
                       </div>
-                      {r.review_text && <p style={{ fontSize: 13, color: '#5F5E5A', lineHeight: 1.6, marginBottom: 4 }}>{r.review_text}</p>}
-                      <div style={{ fontSize: 11, color: '#888780' }}>{new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                      {r.review_text && <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 4 }}>{r.review_text}</p>}
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                     </div>
                   ))}
                 </Section>
@@ -308,15 +308,15 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
               {/* VOTES */}
               {votes.length > 0 && (
                 <Section title="Votes cast" count={votes.length} icon="🗳️" theme={T}>
-                  <div style={{ background: '#fff', borderRadius: 10, border: `1px solid ${T.cardBorder}`, overflow: 'hidden' }}>
+                  <div style={{ background: 'var(--surface)', borderRadius: 10, border: `1px solid ${T.cardBorder}`, overflow: 'hidden' }}>
                     {votes.map((v, i) => (
                       <div key={v.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: i < votes.length - 1 ? `1px solid ${T.accentLight}` : 'none', gap: 10 }}>
-                        <span style={{ fontSize: 13, color: '#2C2C2A', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.businesses?.name || 'Unknown'}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.businesses?.name || 'Unknown'}</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                           <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: v.vote_type === 'legit' ? '#E1F5EE' : '#FCEBEB', color: v.vote_type === 'legit' ? '#085041' : '#A32D2D' }}>
                             {v.vote_type === 'legit' ? '👍 Legit' : '👎 Scam'}
                           </span>
-                          <span style={{ fontSize: 10, color: '#888780' }}>{new Date(v.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}</span>
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{new Date(v.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}</span>
                         </div>
                       </div>
                     ))}
@@ -327,15 +327,15 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
               {/* VIEWED */}
               {viewedBusinesses.length > 0 && (
                 <Section title="Profiles viewed" count={viewedBusinesses.length} icon="👁️" theme={T}>
-                  <div style={{ background: '#fff', borderRadius: 10, border: `1px solid ${T.cardBorder}`, overflow: 'hidden' }}>
+                  <div style={{ background: 'var(--surface)', borderRadius: 10, border: `1px solid ${T.cardBorder}`, overflow: 'hidden' }}>
                     {viewedBusinesses.map((v, i) => (
                       <div key={v.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: i < viewedBusinesses.length - 1 ? `1px solid ${T.accentLight}` : 'none', gap: 10 }}>
-                        <span style={{ fontSize: 13, color: '#2C2C2A', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.businesses?.name || 'Unknown'}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.businesses?.name || 'Unknown'}</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                           <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: v.businesses?.status === 'verified' ? '#E1F5EE' : '#FCEBEB', color: v.businesses?.status === 'verified' ? '#085041' : '#A32D2D' }}>
                             {v.businesses?.status || '—'}
                           </span>
-                          <span style={{ fontSize: 10, color: '#888780' }}>{new Date(v.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}</span>
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{new Date(v.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}</span>
                         </div>
                       </div>
                     ))}
@@ -344,10 +344,10 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
               )}
 
               {reviews.length === 0 && votes.length === 0 && viewedBusinesses.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '40px 20px', background: '#fff', borderRadius: 14, border: `1.5px dashed ${T.accentBorder}` }}>
+                <div style={{ textAlign: 'center', padding: '40px 20px', background: 'var(--surface)', borderRadius: 14, border: `1.5px dashed ${T.accentBorder}` }}>
                   <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
                   <h4 style={{ color: T.accentDark, marginBottom: 8 }}>No activity yet</h4>
-                  <p style={{ color: '#888780', fontSize: 13 }}>Start by searching for a business to review or vote on.</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Start by searching for a business to review or vote on.</p>
                 </div>
               )}
             </div>
@@ -366,7 +366,7 @@ function Section({ title, count, icon, theme, children }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{ fontSize: 16 }}>{icon}</span>
         <h4 style={{ fontSize: 14, fontWeight: 700, color: theme.accentDark }}>{title}</h4>
-        <span style={{ fontSize: 12, color: '#888780', fontWeight: 400 }}>({count})</span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>({count})</span>
       </div>
       {children}
     </div>
@@ -383,7 +383,7 @@ function OwnedBizCard({ business, theme, onClick }) {
     <div
       onClick={onClick || undefined}
       style={{
-        background: '#fff', borderRadius: 14, padding: 18,
+        background: 'var(--surface)', borderRadius: 14, padding: 18,
         border: `1.5px solid ${isPending ? '#E5C97E' : theme.cardBorder}`,
         cursor: isClickable ? 'pointer' : 'default',
         transition: 'box-shadow 0.2s, border-color 0.2s',
@@ -400,8 +400,8 @@ function OwnedBizCard({ business, theme, onClick }) {
 
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#2C2C2A', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{business.name}</div>
-          <div style={{ fontSize: 12, color: '#888780' }}>{business.category}{business.location ? ` · 📍 ${business.location}` : ''}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{business.name}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{business.category}{business.location ? ` · 📍 ${business.location}` : ''}</div>
         </div>
         <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, flexShrink: 0, background: business.status === 'verified' ? '#E1F5EE' : business.status === 'flagged' ? '#FCEBEB' : '#FFFBEB', color: business.status === 'verified' ? '#085041' : business.status === 'flagged' ? '#A32D2D' : '#854D0E' }}>
           {business.status}
@@ -409,22 +409,22 @@ function OwnedBizCard({ business, theme, onClick }) {
       </div>
 
       {business.description && (
-        <p style={{ fontSize: 13, color: '#5F5E5A', lineHeight: 1.6, marginBottom: 10 }}>{business.description}</p>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 10 }}>{business.description}</p>
       )}
 
       {!isPending && (
         <div style={{ marginBottom: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#888780', marginBottom: 4 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
             <span>Trust score</span>
             <span style={{ color: trustColor, fontWeight: 700 }}>{business.trust_score}%</span>
           </div>
-          <div style={{ height: 5, borderRadius: 3, background: '#F1EFE8' }}>
+          <div style={{ height: 5, borderRadius: 3, background: 'var(--hover-bg)' }}>
             <div style={{ height: 5, borderRadius: 3, background: trustColor, width: `${business.trust_score}%`, transition: 'width 0.5s' }} />
           </div>
         </div>
       )}
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 12, color: '#5F5E5A', paddingTop: 10, borderTop: `1px solid ${theme.accentLight}` }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 12, color: 'var(--text-muted)', paddingTop: 10, borderTop: `1px solid ${theme.accentLight}` }}>
         {business.phone && <span>📞 {business.phone}</span>}
         {business.mpesa_till && <span>💳 {business.mpesa_till}</span>}
         {business.fb_handle && <span>📘 {business.fb_handle}</span>}
@@ -467,13 +467,13 @@ function BusinessForm({ currentUser, theme, onSubmitted }) {
     onSubmitted()
   }
 
-  const inp = { width: '100%', padding: '10px 14px', borderRadius: 8, border: `1px solid ${theme.accentBorder}`, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#2C2C2A', outline: 'none', boxSizing: 'border-box' }
+  const inp = { width: '100%', padding: '10px 14px', borderRadius: 8, border: `1px solid ${theme.accentBorder}`, fontSize: 14, fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }
   const lbl = { fontSize: 12, color: theme.accentDark, marginBottom: 5, display: 'block', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }
 
   return (
     <div style={{ background: theme.accentLight, border: `1.5px solid ${theme.accentBorder}`, borderRadius: 14, padding: 20, marginBottom: 18 }}>
       <h3 style={{ color: theme.accentDark, marginBottom: 4, fontSize: 15 }}>List your business</h3>
-      <p style={{ color: '#5F5E5A', fontSize: 12, marginBottom: 16 }}>Our team will review and verify within 24hrs.</p>
+      <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 16 }}>Our team will review and verify within 24hrs.</p>
 
       {error && <div className="form-error" style={{ marginBottom: 14 }}>{error}</div>}
 
@@ -492,7 +492,7 @@ function BusinessForm({ currentUser, theme, onSubmitted }) {
         <div><label style={lbl}>TikTok</label><input style={inp} value={form.tiktok_handle} onChange={e => update('tiktok_handle', e.target.value)} placeholder="@yourhandle" /></div>
         <div><label style={lbl}>Instagram</label><input style={inp} value={form.instagram_handle} onChange={e => update('instagram_handle', e.target.value)} placeholder="@yourhandle" /></div>
       </div>
-      <button onClick={handleSubmit} disabled={submitting} style={{ padding: '11px 28px', background: theme.accent, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: submitting ? 0.7 : 1 }}>
+      <button onClick={handleSubmit} disabled={submitting} style={{ padding: '11px 28px', background: theme.accent, color: 'var(--surface)', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: submitting ? 0.7 : 1 }}>
         {submitting ? 'Submitting…' : 'Submit for review →'}
       </button>
     </div>
