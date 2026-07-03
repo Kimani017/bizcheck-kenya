@@ -228,6 +228,7 @@ function ReviewCard({ review, replies, currentUser, businessId, ownerId, onReply
   const [showReplyBox, setShowReplyBox] = useState(false)
   const [message, setMessage] = useState('')
   const [posting, setPosting] = useState(false)
+  const [threadOpen, setThreadOpen] = useState(replies.length > 0 && replies.length <= 2)
 
   async function postReply() {
     if (!message.trim()) return
@@ -261,8 +262,23 @@ function ReviewCard({ review, replies, currentUser, businessId, ownerId, onReply
 
       {review.review_text && <p style={{ fontSize: 14, color: '#2C2C2A', lineHeight: 1.6, marginBottom: replies.length > 0 ? 10 : 0 }}>{review.review_text}</p>}
 
-      {/* Public reply thread — anyone logged in can post here */}
+      {/* Rollup/rolldown toggle for the reply thread */}
       {replies.length > 0 && (
+        <button
+          onClick={() => setThreadOpen(!threadOpen)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, marginTop: 8,
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 12, fontWeight: 600, color: '#1D9E75', padding: 0,
+          }}
+        >
+          <span style={{ display: 'inline-block', transition: 'transform 0.2s', transform: threadOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+          {threadOpen ? 'Hide' : 'Show'} {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+        </button>
+      )}
+
+      {/* Public reply thread — anyone logged in can post here */}
+      {replies.length > 0 && threadOpen && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, marginLeft: 16, borderLeft: '2px solid #E5E3DC', paddingLeft: 12 }}>
           {replies.map((rep) => {
             const isBizOwner = rep.author_id === ownerId

@@ -211,6 +211,7 @@ function ReviewWithThread({ review, existingReplies, currentUser, businessId, on
   const [showReplyBox, setShowReplyBox] = useState(false)
   const [message, setMessage] = useState('')
   const [posting, setPosting] = useState(false)
+  const [threadOpen, setThreadOpen] = useState(existingReplies.length > 0 && existingReplies.length <= 2)
 
   async function postReply() {
     if (!message.trim()) return
@@ -239,8 +240,23 @@ function ReviewWithThread({ review, existingReplies, currentUser, businessId, on
         {new Date(review.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
       </div>
 
-      {/* REPLY THREAD — public, shows both owner and customer replies */}
+      {/* Rollup/rolldown toggle for the reply thread */}
       {existingReplies.length > 0 && (
+        <button
+          onClick={() => setThreadOpen(!threadOpen)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, marginBottom: threadOpen ? 8 : 0,
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 12, fontWeight: 600, color: '#1D9E75', padding: 0,
+          }}
+        >
+          <span style={{ display: 'inline-block', transition: 'transform 0.2s', transform: threadOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+          {threadOpen ? 'Hide' : 'Show'} {existingReplies.length} {existingReplies.length === 1 ? 'reply' : 'replies'}
+        </button>
+      )}
+
+      {/* REPLY THREAD — public, shows both owner and customer replies */}
+      {existingReplies.length > 0 && threadOpen && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginLeft: 16, borderLeft: '2px solid #E5E3DC', paddingLeft: 12 }}>
           {existingReplies.map((rep) => {
             const isMe = rep.author_id === currentUser.id
