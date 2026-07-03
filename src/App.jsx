@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
+import Sidebar from './pages/Sidebar'
 import Landing from './pages/Landing'
 import Home from './pages/Home'
 import Directory from './pages/Directory'
@@ -11,6 +12,8 @@ import Auth from './pages/Auth'
 import SubmitBusiness from './pages/SubmitBusiness'
 import AdminDashboard from './pages/AdminDashboard'
 import SetUsername from './pages/SetUsername'
+import Settings from './pages/Settings'
+import Support from './pages/Support'
 import './App.css'
 
 const NAV_KEY = 'bizcheck_nav_state'
@@ -29,72 +32,6 @@ function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('bizcheck_theme') || 'light')
   const isRestoringRef = useRef(false)
 
-  // ============================================================
-  // NAVIGATION — persists across reload and supports back button
-  // ============================================================
-
-  // Build a lightweight nav snapshot (ids only, not full objects)
-  function buildNavState(overrides = {}) {
-    return {
-      page,
-      businessId: selectedBusiness?.id || null,
-      userId: selectedUserId || null,
-      authMode,
-      ...overrides,
-    }
-  }
-
-  // Central navigation function — replaces direct setPage() calls
-  function navigate(newPage, opts = {}) {
-    const { business = undefined, userId = undefined, mode = undefined, replace = false } = opts
-
-    if (business !== undefined) setSelectedBusiness(business)
-    if (userId !== undefined) setSelectedUserId(userId)
-    if (mode !== undefined) setAuthMode(mode)
-    setPage(newPage)
-
-    if (isRestoringRef.current) return // don't push history while restoring
-
-    const navState = {
-      page: newPage,
-      businessId: business !== undefined ? (business?.id || null) : (selectedBusiness?.id || null),
-      userId: userId !== undefined ? userId : selectedUserId,
-      authMode: mode !== undefined ? mode : authMode,
-    }
-
-    sessionStorage.setItem(NAV_KEY, JSON.stringify(navState))
-
-    const url = `#${newPage}`
-    if (replace) {
-      window.history.replaceState(navState, '', url)
-    } else {
-      window.history.pushState(navState, '', url)
-    }
-  }
-
-  // Restore a nav state (from reload or popstate) by fetching any needed data
-  async function restoreNavState(navState) {
-    if (!navState) return
-    isRestoringRef.current = true
-
-    try {
-      if (navState.authMode) setAuthMode(navState.authMode)
-
-      if (navState.businessId && ['bizProfile', 'bizDashboard'].includes(navState.page)) {
-        const { data: biz } = await supabase.from('businesses').select('*').eq('id', navState.businessId).single()
-        if (biz) setSelectedBusiness(biz)
-      }
-
-      if (navState.userId && navState.page === 'userProfile') {
-        setSelectedUserId(navState.userId)
-      }
-
-      setPage(navState.page || 'home')
-    } finally {
-      isRestoringRef.current = false
-    }
-  }
-
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('bizcheck_theme', theme)
@@ -104,15 +41,54 @@ function App() {
     setTheme(t => t === 'light' ? 'dark' : 'light')
   }
 
+  function navigate(newPage, opts = {}) {
+    const { business = undefined, userId = undefined, mode = undefined, replace = false } = opts
+
+    if (business !== undefined) setSelectedBusiness(business)
+    if (userId !== undefined) setSelectedUserId(userId)
+    if (mode !== undefined) setAuthMode(mode)
+    setPage(newPage)
+
+    if (isRestoringRef.current) return
+
+    const navState = {
+      page: newPage,
+      businessId: business !== undefined ? (business?.id || null) : (selectedBusiness?.id || null),
+      userId: userId !== undefined ? userId : selectedUserId,
+      authMode: mode !== undefined ? mode : authMode,
+    }
+
+    sessionStorage.setItem(NAV_KEY, JSON.stringify(navState))
+    const url = `#${newPage}`
+    if (replace) window.history.replaceState(navState, '', url)
+    else window.history.pushState(navState, '', url)
+  }
+
+  async function restoreNavState(navState) {
+    if (!navState) return
+    isRestoringRef.current = true
+    try {
+      if (navState.authMode) setAuthMode(navState.authMode)
+      if (navState.businessId && ['bizProfile', 'bizDashboard'].includes(navState.page)) {
+        const { data: biz } = await supabase.from('businesses').select('*').eq('id', navState.businessId).single()
+        if (biz) setSelectedBusiness(biz)
+      }
+      if (navState.userId && navState.page === 'userProfile') {
+        setSelectedUserId(navState.userId)
+      }
+      setPage(navState.page || 'home')
+    } finally {
+      isRestoringRef.current = false
+    }
+  }
+
   useEffect(() => {
     init()
 
-    // Handle browser back/forward buttons
     const onPopState = (event) => {
       if (event.state && event.state.page) {
         restoreNavState(event.state)
       } else {
-        // No tracked state (user went back past app's history) — fall back to home
         isRestoringRef.current = true
         setPage('home')
         setSelectedBusiness(null)
@@ -159,13 +135,11 @@ function App() {
     }
     setCheckingAuth(false)
 
-    // Restore navigation from sessionStorage (survives reload)
     const saved = sessionStorage.getItem(NAV_KEY)
     if (saved) {
       try {
         const navState = JSON.parse(saved)
         await restoreNavState(navState)
-        // Set initial history entry so back button works from here
         window.history.replaceState(navState, '', `#${navState.page}`)
       } catch (e) {
         console.error('Failed to restore nav state:', e)
@@ -210,7 +184,7 @@ function App() {
   }
 
   function openUserProfile(userId) {
-    navigate('userProfile', { userId })
+    navigate('userProfile', { userId: userId || user?.id })
   }
 
   function goToReport(business = null) {
@@ -227,6 +201,10 @@ function App() {
     navigate('submit')
   }
 
+  function goBack() {
+    window.history.back()
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut()
     setUser(null)
@@ -235,15 +213,9 @@ function App() {
     navigate('home', { business: null, userId: null })
   }
 
-  // Used by all in-app "Back" buttons — goes to the real previous
-  // page via browser history instead of hardcoding 'home'
-  function goBack() {
-    window.history.back()
-  }
-
   if (checkingAuth || restoring) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg)' }}>
         <div style={{ color: '#1D9E75', fontSize: 16 }}>Loading…</div>
       </div>
     )
@@ -253,7 +225,7 @@ function App() {
     return <SetUsername user={user} onDone={() => setNeedsUsername(false)} />
   }
 
-  // Not logged in
+  // Not logged in — no sidebar, simple top nav for landing/auth
   if (!user) {
     return (
       <div className="app">
@@ -272,53 +244,52 @@ function App() {
     )
   }
 
-  // Logged in
+  // Logged in — sidebar layout
   return (
     <div className="app">
-      <nav className="navbar">
-        <div className="logo" onClick={() => navigate('home')}>
-          <span className="logo-dot"></span> BizCheck Kenya
-        </div>
-        <div className="nav-links">
-          <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button>
-          <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Trusted Sellers</button>
-          <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>Report a Scammer</button>
-          {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
-          <button onClick={() => openUserProfile(user.id)}>My Profile</button>
-          <button className="theme-toggle" onClick={toggleTheme}>{theme === 'light' ? '🌙' : '☀️'}</button>
-          <button onClick={handleLogout}>Log out</button>
-        </div>
-      </nav>
+      <Sidebar
+        page={page}
+        navigate={navigate}
+        openUserProfile={() => openUserProfile(user.id)}
+        isAdmin={isAdmin}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        handleLogout={handleLogout}
+      />
 
-      {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
-      {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} />}
-      {page === 'report' && <ReportForm onDone={() => navigate('home')} prefill={reportPrefill} />}
-      {page === 'submit' && <SubmitBusiness onDone={() => navigate('directory')} />}
-      {page === 'admin' && <AdminDashboard />}
-      {page === 'bizProfile' && selectedBusiness && (
-        <BusinessPublicProfile
-          business={selectedBusiness}
-          onBack={goBack}
-          onReport={goToReport}
-          currentUser={user}
-        />
-      )}
-      {page === 'bizDashboard' && selectedBusiness && (
-        <BusinessPrivateDashboard
-          business={selectedBusiness}
-          onBack={goBack}
-          currentUser={user}
-        />
-      )}
-      {page === 'userProfile' && selectedUserId && (
-        <UserProfile
-          profileUserId={selectedUserId}
-          currentUser={user}
-          isAdmin={isAdmin}
-          onBack={goBack}
-          onSelectBusiness={openBusiness}
-        />
-      )}
+      <div className="main-content">
+        {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
+        {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} />}
+        {page === 'report' && <ReportForm onDone={() => navigate('home')} prefill={reportPrefill} />}
+        {page === 'submit' && <SubmitBusiness onDone={() => navigate('directory')} />}
+        {page === 'admin' && <AdminDashboard />}
+        {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} />}
+        {page === 'support' && <Support onBack={goBack} />}
+        {page === 'bizProfile' && selectedBusiness && (
+          <BusinessPublicProfile
+            business={selectedBusiness}
+            onBack={goBack}
+            onReport={goToReport}
+            currentUser={user}
+          />
+        )}
+        {page === 'bizDashboard' && selectedBusiness && (
+          <BusinessPrivateDashboard
+            business={selectedBusiness}
+            onBack={goBack}
+            currentUser={user}
+          />
+        )}
+        {page === 'userProfile' && selectedUserId && (
+          <UserProfile
+            profileUserId={selectedUserId}
+            currentUser={user}
+            isAdmin={isAdmin}
+            onBack={goBack}
+            onSelectBusiness={openBusiness}
+          />
+        )}
+      </div>
     </div>
   )
 }
