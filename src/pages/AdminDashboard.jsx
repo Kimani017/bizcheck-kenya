@@ -53,25 +53,48 @@ export default function AdminDashboard() {
   async function approveSubmission(sub) {
     const { data: { user } } = await supabase.auth.getUser()
 
-    const { error: insertError } = await supabase.from('businesses').insert({
-      name: sub.name,
-      category: sub.category,
-      description: sub.description,
-      phone: sub.phone,
-      mpesa_till: sub.mpesa_till,
-      fb_handle: sub.fb_handle,
-      tiktok_handle: sub.tiktok_handle,
-      instagram_handle: sub.instagram_handle,
-      logo_url: sub.logo_url,
-      owner_id: sub.submitter_id, // link business to the submitter
-      status: 'verified',
-    })
+    // Check if a business with the same name already exists to avoid duplicates
+    const { data: existing } = await supabase
+      .from('businesses')
+      .select('id')
+      .ilike('name', sub.name)
+      .single()
 
-    if (insertError) {
-      alert('Error approving: ' + insertError.message)
-      return
+    if (existing) {
+      // Business already exists — just update it and link owner
+      const { error: updateError } = await supabase.from('businesses').update({
+        category: sub.category,
+        description: sub.description,
+        phone: sub.phone,
+        mpesa_till: sub.mpesa_till,
+        fb_handle: sub.fb_handle,
+        tiktok_handle: sub.tiktok_handle,
+        instagram_handle: sub.instagram_handle,
+        owner_id: sub.submitter_id,
+        status: 'verified',
+      }).eq('id', existing.id)
+
+      if (updateError) { alert('Error approving: ' + updateError.message); return }
+    } else {
+      // Business does not exist — create it fresh
+      const { error: insertError } = await supabase.from('businesses').insert({
+        name: sub.name,
+        category: sub.category,
+        description: sub.description,
+        phone: sub.phone,
+        mpesa_till: sub.mpesa_till,
+        fb_handle: sub.fb_handle,
+        tiktok_handle: sub.tiktok_handle,
+        instagram_handle: sub.instagram_handle,
+        logo_url: sub.logo_url,
+        owner_id: sub.submitter_id,
+        status: 'verified',
+      })
+
+      if (insertError) { alert('Error approving: ' + insertError.message); return }
     }
 
+    // Mark submission as approved
     await supabase.from('submissions').update({
       status: 'approved',
       reviewed_by: user.id,
