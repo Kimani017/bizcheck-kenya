@@ -17,7 +17,6 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
   const [views, setViews] = useState([])
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({
-    location: business.location || '',
     description: business.description || '',
     phone: business.phone || '',
     mpesa_till: business.mpesa_till || '',
@@ -78,9 +77,28 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
       {/* EDIT FORM */}
       {editing && (
         <div className="review-write-box" style={{ marginBottom: 20 }}>
-          <h3 style={{ marginBottom: 14 }}>Edit business details</h3>
+          <h3 style={{ marginBottom: 6 }}>Edit business details</h3>
+          <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
+            Business name, category and location are locked after verification. Contact support to change these.
+          </p>
+
+          {/* Locked fields — shown but not editable */}
+          <div style={{ background: '#F1EFE8', borderRadius: 8, padding: '12px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <span style={{ color: '#888780' }}>🔒 Business name</span>
+              <span style={{ fontWeight: 500 }}>{biz.name}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <span style={{ color: '#888780' }}>🔒 Category</span>
+              <span style={{ fontWeight: 500 }}>{biz.category}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <span style={{ color: '#888780' }}>🔒 Location</span>
+              <span style={{ fontWeight: 500 }}>{biz.location || '—'}</span>
+            </div>
+          </div>
+
           {[
-            ['location', 'Location', 'e.g. Westlands, Nairobi'],
             ['description', 'Description', 'Tell customers about your business'],
             ['phone', 'Phone number', '0712 345 678'],
             ['mpesa_till', 'M-Pesa till', 'Till 123456'],
