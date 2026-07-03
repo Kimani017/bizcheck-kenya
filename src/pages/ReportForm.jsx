@@ -25,11 +25,28 @@ export default function ReportForm({ onDone, prefill }) {
     if (!searchQuery.trim()) return
     setSearching(true)
     setSearchResults([])
+    const q = searchQuery.trim()
 
-    const { data, error } = await supabase.rpc('search_businesses', { query: searchQuery.trim() })
+    // Try RPC search first
+    const { data: rpcData, error: rpcError } = await supabase.rpc('search_businesses', { query: q })
+
+    if (!rpcError && rpcData && rpcData.length > 0) {
+      setSearchResults(rpcData)
+      setSearching(false)
+      return
+    }
+
+    // Fallback: direct ilike query if RPC returns nothing or errors
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('businesses')
+      .select('*')
+      .in('status', ['verified', 'flagged'])
+      .or(`name.ilike.%${q}%,phone.ilike.%${q}%,mpesa_till.ilike.%${q}%,fb_handle.ilike.%${q}%,tiktok_handle.ilike.%${q}%`)
+      .order('trust_score', { ascending: false })
+
     setSearching(false)
-    if (error) { console.error(error); setSearchResults([]); return }
-    setSearchResults(data || [])
+    if (fallbackError) { console.error(fallbackError); setSearchResults([]); return }
+    setSearchResults(fallbackData || [])
   }
 
   function selectBusiness(biz) {
