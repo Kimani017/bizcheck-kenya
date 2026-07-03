@@ -29,6 +29,8 @@ function App() {
   const [needsUsername, setNeedsUsername] = useState(false)
   const [restoring, setRestoring] = useState(true)
   const [theme, setTheme] = useState(() => localStorage.getItem('bizcheck_theme') || 'light')
+  const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const isRestoringRef = useRef(false)
 
   useEffect(() => {
@@ -39,6 +41,15 @@ function App() {
   function toggleTheme() {
     setTheme(t => t === 'light' ? 'dark' : 'light')
   }
+
+  useEffect(() => {
+    function checkSize() { setIsMobileView(window.innerWidth <= 768) }
+    window.addEventListener('resize', checkSize)
+    return () => window.removeEventListener('resize', checkSize)
+  }, [])
+
+  // Close mobile menu whenever the page changes
+  useEffect(() => { setMobileMenuOpen(false) }, [page])
 
   function navigate(newPage, opts = {}) {
     const { business = undefined, userId = undefined, mode = undefined, replace = false } = opts
@@ -246,25 +257,63 @@ function App() {
   // Logged in — centered horizontal top nav
   return (
     <div className="app">
-      <nav className="navbar navbar-grid">
-        <div className="logo" onClick={() => navigate('home')}>
-          <span className="logo-dot"></span> BizCheck Kenya
-        </div>
+      {!isMobileView ? (
+        // DESKTOP — centered horizontal navbar
+        <nav className="navbar navbar-grid">
+          <div className="logo" onClick={() => navigate('home')}>
+            <span className="logo-dot"></span> BizCheck Kenya
+          </div>
 
-        <div className="nav-links nav-links-center">
-          <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button>
-          <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Trusted Sellers</button>
-          <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>Report a Scammer</button>
-          {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
-          <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>
-        </div>
+          <div className="nav-links nav-links-center">
+            <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button>
+            <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Trusted Sellers</button>
+            <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>Report a Scammer</button>
+            {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
+            <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>
+          </div>
 
-        <div className="nav-links nav-links-right">
-          <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
-          <button className={page === 'support' ? 'active' : ''} onClick={() => navigate('support')}>Support</button>
-          <button onClick={handleLogout}>Log out</button>
-        </div>
-      </nav>
+          <div className="nav-links nav-links-right">
+            <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
+            <button className={page === 'support' ? 'active' : ''} onClick={() => navigate('support')}>Support</button>
+            <button onClick={handleLogout}>Log out</button>
+          </div>
+        </nav>
+      ) : (
+        // MOBILE — hamburger button (left) + vertical slide-in drawer
+        <>
+          <div className="mobile-topbar">
+            <button className="hamburger-btn" onClick={() => setMobileMenuOpen(true)} aria-label="Open menu">☰</button>
+            <div className="logo" onClick={() => navigate('home')}>
+              <span className="logo-dot"></span> BizCheck Kenya
+            </div>
+            <div style={{ width: 40 }} />
+          </div>
+
+          {mobileMenuOpen && (
+            <div className="mobile-menu-overlay" onClick={() => setMobileMenuOpen(false)} />
+          )}
+
+          <div className={`mobile-menu-drawer ${mobileMenuOpen ? 'open' : ''}`}>
+            <div className="mobile-menu-header">
+              <div className="logo">
+                <span className="logo-dot"></span> BizCheck Kenya
+              </div>
+              <button className="hamburger-btn" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">✕</button>
+            </div>
+            <div className="mobile-menu-links">
+              <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button>
+              <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Trusted Sellers</button>
+              <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>Report a Scammer</button>
+              {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
+              <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>
+              <div className="mobile-menu-divider" />
+              <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
+              <button className={page === 'support' ? 'active' : ''} onClick={() => navigate('support')}>Support</button>
+              <button onClick={handleLogout} style={{ color: '#E24B4A' }}>Log out</button>
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="main-content">
         {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
