@@ -320,7 +320,7 @@ function App() {
         {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} />}
         {page === 'report' && <ReportForm onDone={() => navigate('home')} prefill={reportPrefill} />}
         {page === 'submit' && <SubmitBusiness onDone={() => navigate('directory')} />}
-        {page === 'admin' && <AdminDashboard />}
+        {page === 'admin' && <AdminDashboard onSelectBusiness={openBusiness} onSelectUser={openUserProfile} />}
         {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} />}
         {page === 'support' && <Support onBack={goBack} />}
         {page === 'bizProfile' && selectedBusiness && (

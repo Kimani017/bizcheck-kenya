@@ -4,7 +4,7 @@ import { supabase } from '../supabase'
 const FLAG_THRESHOLD = 6
 const SCAM_THRESHOLD = 10
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   const [mainTab, setMainTab] = useState('businesses') // businesses | reports | verification
   const [bizSubTab, setBizSubTab] = useState('verified') // verified | flagged | scam
   const [reportSubTab, setReportSubTab] = useState('pending') // pending | reported | log
@@ -126,6 +126,10 @@ export default function AdminDashboard() {
     loadAll()
   }
 
+  function getFullBusiness(businessId) {
+    return businesses.find(b => b.id === businessId) || null
+  }
+
   if (isAdmin === null) return <div className="section"><p className="muted">Checking access…</p></div>
   if (isAdmin === false) return <div className="section"><p className="muted">You don't have admin access.</p></div>
   if (loading) return <div className="section"><p className="muted">Loading dashboard…</p></div>
@@ -210,7 +214,7 @@ export default function AdminDashboard() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {(bizSubTab === 'verified' ? verifiedBiz : bizSubTab === 'flagged' ? flaggedBiz : scamBiz).map((b) => (
-              <BusinessAdminRow key={b.id} business={b} onSetStatus={setBusinessStatus} thresholds={{ FLAG_THRESHOLD, SCAM_THRESHOLD }} />
+              <BusinessAdminRow key={b.id} business={b} onSetStatus={setBusinessStatus} thresholds={{ FLAG_THRESHOLD, SCAM_THRESHOLD }} onSelectBusiness={onSelectBusiness} onSelectUser={onSelectUser} />
             ))}
             {(bizSubTab === 'verified' ? verifiedBiz : bizSubTab === 'flagged' ? flaggedBiz : scamBiz).length === 0 && (
               <p className="muted">No businesses in this category.</p>
@@ -271,10 +275,27 @@ export default function AdminDashboard() {
                 return (
                   <div className="admin-row" key={rb.businessId} style={{ flexWrap: 'wrap' }}>
                     <div>
-                      <strong>{biz?.name || 'Unknown business'}</strong>
+                      <button
+                        onClick={() => {
+                          const full = getFullBusiness(rb.businessId)
+                          if (full) onSelectBusiness?.(full)
+                        }}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+                      >
+                        <strong style={{ color: '#1D9E75', textDecoration: 'underline' }}>{biz?.name || 'Unknown business'}</strong>
+                      </button>
                       <span className={`badge ${biz?.status === 'verified' ? 'badge-verified' : biz?.status === 'scam' ? 'badge-danger' : 'badge-pending'}`} style={{ marginLeft: 8 }}>
                         {biz?.status}
                       </span>
+                      {getFullBusiness(rb.businessId)?.owner_id && (
+                        <button
+                          onClick={() => onSelectUser?.(getFullBusiness(rb.businessId).owner_id)}
+                          className="link-btn"
+                          style={{ display: 'inline', margin: 0, marginLeft: 8, fontSize: 12 }}
+                        >
+                          👤 View owner profile
+                        </button>
+                      )}
                       <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
                         {count} unique reporter{count !== 1 ? 's' : ''} · {rb.reportCount} total report{rb.reportCount !== 1 ? 's' : ''}
                       </div>
@@ -339,7 +360,13 @@ export default function AdminDashboard() {
                 </div>
                 {s.description && <div style={{ fontSize: 13, marginTop: 4 }}>{s.description}</div>}
                 <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                  Submitted by: {s.profiles?.name || s.profiles?.username || 'Unknown'} · {new Date(s.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  Submitted by:{' '}
+                  {s.submitter_id ? (
+                    <button onClick={() => onSelectUser?.(s.submitter_id)} className="link-btn" style={{ display: 'inline', margin: 0, fontSize: 12 }}>
+                      {s.profiles?.name || s.profiles?.username || 'Unknown'} →
+                    </button>
+                  ) : (s.profiles?.name || s.profiles?.username || 'Unknown')}
+                  {' · '}{new Date(s.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </div>
               </div>
               <div className="admin-actions">
@@ -355,14 +382,29 @@ export default function AdminDashboard() {
 }
 
 // ── Business row in "All Businesses" tab ──
-function BusinessAdminRow({ business: b, onSetStatus, thresholds }) {
+function BusinessAdminRow({ business: b, onSetStatus, thresholds, onSelectBusiness, onSelectUser }) {
   const needsFlagReview = b.unique_reporter_count >= thresholds.FLAG_THRESHOLD && b.status === 'verified'
   const needsScamReview = b.unique_reporter_count >= thresholds.SCAM_THRESHOLD && b.status !== 'scam'
 
   return (
     <div className="admin-row" style={{ flexWrap: 'wrap' }}>
       <div>
-        <strong>{b.name}</strong> <span className="muted">— {b.category}</span>
+        <button
+          onClick={() => onSelectBusiness?.(b)}
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+        >
+          <strong style={{ color: '#1D9E75', textDecoration: 'underline' }}>{b.name}</strong>
+        </button>
+        <span className="muted"> — {b.category}</span>
+        {b.owner_id && (
+          <button
+            onClick={() => onSelectUser?.(b.owner_id)}
+            className="link-btn"
+            style={{ display: 'inline', margin: 0, marginLeft: 8, fontSize: 12 }}
+          >
+            👤 View owner profile
+          </button>
+        )}
         <div className="muted" style={{ fontSize: 13 }}>
           Trust: {b.trust_score}% · {b.legit_votes} legit / {b.scam_votes} scam votes · {b.unique_reporter_count} unique reporters
         </div>
