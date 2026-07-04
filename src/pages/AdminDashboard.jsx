@@ -513,11 +513,11 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
                       <div key={m.id} style={{ display: 'flex', justifyContent: isMeAdmin ? 'flex-end' : 'flex-start' }}>
                         <div style={{
                           maxWidth: '70%', padding: '10px 14px', borderRadius: 14,
-                          background: isMeAdmin ? '#1D9E75' : isBot ? '#E0F7FA' : 'var(--hover-bg)',
+                          background: isMeAdmin ? '#1D9E75' : 'var(--hover-bg)',
                           color: isMeAdmin ? '#fff' : 'var(--text)', fontSize: 14,
-                          border: isBot ? '1px solid #80DEEA' : 'none',
+                          border: isBot ? '1.5px solid #17A2B8' : 'none',
                         }}>
-                          {isBot && <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 2, color: '#0D6E82' }}>🤖 Bot auto-reply</div>}
+                          {isBot && <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 2, color: '#17A2B8' }}>🤖 Bot auto-reply</div>}
                           {m.message}
                           <div style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>
                             {new Date(m.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}

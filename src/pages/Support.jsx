@@ -78,7 +78,7 @@ const FAQ_RESPONSES = [
 
   // ── Account help ──
   {
-    keywords: ['forgot password', 'reset password', "can't log in", 'cannot log in', 'login issue', 'trouble logging in'],
+    keywords: ['forgot password', 'reset password', 'change password', 'change my password', 'new password', "can't log in", 'cannot log in', 'login issue', 'trouble logging in'],
     answer: "On the login page, click 'Forgot your password?' and we'll send a reset link to your email. If you still have trouble, share your registered email here and we'll help.",
   },
   {
@@ -123,10 +123,16 @@ const FAQ_RESPONSES = [
   },
 ]
 
+// Normalize text so matching ignores case, punctuation, and extra spaces
+// e.g. "How can I change my PASSWORD?!" -> "how can i change my password"
+function normalize(s) {
+  return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
 function findBotReply(message) {
-  const lower = message.toLowerCase()
+  const cleaned = normalize(message)
   for (const faq of FAQ_RESPONSES) {
-    if (faq.keywords.some((kw) => lower.includes(kw))) {
+    if (faq.keywords.some((kw) => cleaned.includes(normalize(kw)))) {
       return faq.answer
     }
   }
@@ -246,12 +252,12 @@ export default function Support({ onBack, currentUser }) {
                   <div style={{
                     maxWidth: '78%', padding: '10px 14px', borderRadius: 14,
                     background: isMe ? '#1D9E75' : isBot ? '#E0F7FA' : 'var(--hover-bg)',
-                    color: isMe ? '#fff' : 'var(--text)',
+                    color: isMe ? '#fff' : isBot ? '#0D3C46' : 'var(--text)',
                     fontSize: 14, lineHeight: 1.5,
                     border: isBot ? '1px solid #80DEEA' : 'none',
                   }}>
                     {!isMe && (
-                      <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 2, opacity: 0.7 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 2, color: isBot ? '#17A2B8' : 'var(--text-muted)' }}>
                         {isBot ? '🤖 BizCheck Assistant' : 'BizCheck Support'}
                       </div>
                     )}
@@ -266,7 +272,7 @@ export default function Support({ onBack, currentUser }) {
           )}
           {botTyping && (
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-              <div style={{ padding: '10px 14px', borderRadius: 14, background: '#E0F7FA', border: '1px solid #80DEEA', fontSize: 13, color: '#0D6E82' }}>
+              <div style={{ padding: '10px 14px', borderRadius: 14, background: 'var(--hover-bg)', border: '1.5px solid #17A2B8', fontSize: 13, color: 'var(--text)' }}>
                 🤖 typing…
               </div>
             </div>
