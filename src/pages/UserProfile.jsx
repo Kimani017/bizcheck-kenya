@@ -321,7 +321,7 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
 
               {/* REVIEWS */}
               {reviews.length > 0 && (
-                <Section title="Reviews written" count={reviews.length} icon="⭐" theme={T}>
+                <Section title="Reviews written" count={reviews.length} icon="⭐" theme={T} isNarrow={isNarrow}>
                   {reviews.map((r) => (
                     <div key={r.id} style={{ background: 'var(--surface)', borderRadius: 10, padding: '12px 14px', border: `1px solid ${T.cardBorder}`, marginBottom: 8 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, gap: 8, flexWrap: 'wrap' }}>
@@ -337,7 +337,7 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
 
               {/* VOTES */}
               {votes.length > 0 && (
-                <Section title="Votes cast" count={votes.length} icon="🗳️" theme={T}>
+                <Section title="Votes cast" count={votes.length} icon="🗳️" theme={T} isNarrow={isNarrow}>
                   <div style={{ background: 'var(--surface)', borderRadius: 10, border: `1px solid ${T.cardBorder}`, overflow: 'hidden' }}>
                     {votes.map((v, i) => (
                       <div key={v.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: i < votes.length - 1 ? `1px solid ${T.accentLight}` : 'none', gap: 10 }}>
@@ -356,7 +356,7 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
 
               {/* VIEWED */}
               {viewedBusinesses.length > 0 && (
-                <Section title="Profiles viewed" count={viewedBusinesses.length} icon="👁️" theme={T}>
+                <Section title="Profiles viewed" count={viewedBusinesses.length} icon="👁️" theme={T} isNarrow={isNarrow}>
                   <div style={{ background: 'var(--surface)', borderRadius: 10, border: `1px solid ${T.cardBorder}`, overflow: 'hidden' }}>
                     {viewedBusinesses.map((v, i) => (
                       <div key={v.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: i < viewedBusinesses.length - 1 ? `1px solid ${T.accentLight}` : 'none', gap: 10 }}>
@@ -391,21 +391,35 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
 }
 
 // ── SECTION HEADER ──
-function Section({ title, count, icon, theme, children, defaultOpen = true }) {
-  const [open, setOpen] = useState(defaultOpen)
+function Section({ title, count, icon, theme, children, isNarrow }) {
+  const [open, setOpen] = useState(false)
+
+  // Desktop: hover the header to reveal, hide when mouse leaves.
+  // Mobile: tap the header to toggle open/closed.
+  const hoverHandlers = !isNarrow
+    ? {
+        onMouseEnter: () => setOpen(true),
+        onMouseLeave: () => setOpen(false),
+      }
+    : {}
+
+  const clickHandler = isNarrow ? () => setOpen(!open) : undefined
+
   return (
-    <div style={{ marginBottom: 20 }}>
+    <div style={{ marginBottom: 20 }} {...hoverHandlers}>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={clickHandler}
         style={{
           display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 10 : 0,
-          background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%',
+          background: 'none', border: 'none', cursor: isNarrow ? 'pointer' : 'default', padding: 0, width: '100%',
         }}
       >
         <span style={{ fontSize: 16 }}>{icon}</span>
         <h4 style={{ fontSize: 14, fontWeight: 700, color: theme.accentDark, margin: 0 }}>{title}</h4>
         <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>({count})</span>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)', transition: 'transform 0.2s', transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
+          {isNarrow ? (open ? 'Hide' : 'Show') : (open ? '' : 'hover to view')}
+        </span>
       </button>
       {open && children}
     </div>
