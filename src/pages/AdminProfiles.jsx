@@ -86,6 +86,13 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
     loadAll()
   }
 
+  async function cancelApproval(app) {
+    if (!confirm(`Cancel approval for @${app.profiles?.username || app.official_name}? Their activation code will stop working immediately.`)) return
+    const { error } = await supabase.rpc('cancel_admin_approval', { p_application_id: app.id })
+    if (error) { alert('Error: ' + error.message); return }
+    loadAll()
+  }
+
   async function rejectApplication(app) {
     const note = prompt('Reason for rejection (shown internally only):')
     if (note === null) return
@@ -208,6 +215,13 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
                 <div className="admin-actions">
                   <button className="btn-small" onClick={() => approveApplication(app)}>Approve & send code</button>
                   <button className="btn-ghost-small" onClick={() => rejectApplication(app)}>Reject</button>
+                </div>
+              )}
+
+              {app.status === 'approved' && (
+                <div className="admin-actions">
+                  <button className="btn-small" onClick={() => approveApplication(app)}>Resend code email</button>
+                  <button className="btn-ghost-small" style={{ color: '#E24B4A' }} onClick={() => cancelApproval(app)}>Cancel approval</button>
                 </div>
               )}
             </div>
