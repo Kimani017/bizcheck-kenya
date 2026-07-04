@@ -61,10 +61,10 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
   const isOwner = currentUser?.id === profileUserId
   const canSeePrivate = isOwner || isAdmin
   const T = THEMES[activeTab] || THEMES.business
-  const [isNarrow, setIsNarrow] = useState(isNarrow)
+  const [isNarrow, setIsNarrow] = useState(window.innerWidth <= 600)
 
   useEffect(() => {
-    function checkSize() { setIsNarrow(isNarrow) }
+    function checkSize() { setIsNarrow(window.innerWidth <= 600) }
     window.addEventListener('resize', checkSize)
     return () => window.removeEventListener('resize', checkSize)
   }, [])
