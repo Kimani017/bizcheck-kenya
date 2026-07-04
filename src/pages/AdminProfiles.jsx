@@ -2,31 +2,33 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { SkeletonList } from './Skeleton'
 
-export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentUser }) {
-  const [tab, setTab] = useState('businesses') // businesses | users | personal
+export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentUser, onApply }) {
+  const [tab, setTab] = useState('businesses') // businesses | users | applications | personal
   const [businesses, setBusinesses] = useState([])
   const [users, setUsers] = useState([])
+  const [applications, setApplications] = useState([])
   const [loading, setLoading] = useState(true)
   const [isSuperadmin, setIsSuperadmin] = useState(false)
 
-  // Personal info lock state
   const [adminCode, setAdminCode] = useState('')
   const [unlocking, setUnlocking] = useState(false)
   const [unlockError, setUnlockError] = useState('')
-  const [personalInfo, setPersonalInfo] = useState(null) // null = locked
+  const [personalInfo, setPersonalInfo] = useState(null)
 
   useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
     setLoading(true)
-    const [bizRes, userRes, meRes] = await Promise.all([
+    const [bizRes, userRes, meRes, appRes] = await Promise.all([
       supabase.from('businesses').select('*').order('created_at', { ascending: false }),
       supabase.from('profiles').select('id, name, username, role, created_at').order('created_at', { ascending: false }),
       supabase.from('profiles').select('role').eq('id', currentUser.id).single(),
+      supabase.from('admin_applications').select('*, profiles!admin_applications_user_id_fkey(name, username, email)').order('created_at', { ascending: false }),
     ])
     setBusinesses(bizRes.data || [])
     setUsers(userRes.data || [])
     setIsSuperadmin(meRes.data?.role === 'superadmin')
+    setApplications(appRes.data || [])
     setLoading(false)
   }
 
@@ -43,11 +45,12 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
     setPersonalInfo(data || [])
   }
 
-  async function promoteUser(u) {
-    if (!confirm(`Make @${u.username || u.name} an admin? They will get a new Admin ID.`)) return
-    const { data, error } = await supabase.rpc('promote_to_admin', { p_target: u.id })
+  // Superadmin sends the admin application form to a user
+  async function inviteUser(u) {
+    if (!confirm(`Send @${u.username || u.name} an admin application form? They must fill it in before you can approve them.`)) return
+    const { error } = await supabase.rpc('invite_admin_application', { p_target: u.id })
     if (error) { alert('Error: ' + error.message); return }
-    alert(`✓ @${u.username || u.name} is now an admin.\n\nTheir Admin ID is:\n\n${data}\n\nShare this with them securely — it will NOT be shown again.`)
+    alert(`✓ Invitation sent. @${u.username || u.name} will see the application form the next time they log in.`)
     loadAll()
   }
 
@@ -58,7 +61,48 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
     loadAll()
   }
 
+  // Superadmin approves a submitted application — generates code and emails it
+  async function approveApplication(app) {
+    if (!confirm(`Approve @${app.profiles?.username || app.official_name}? This will email them their secret admin activation code.`)) return
+    const { data: code, error } = await supabase.rpc('approve_admin_application', { p_application_id: app.id })
+    if (error) { alert('Error: ' + error.message); return }
+
+    // Send the code via email through our Edge Function
+    const { data: sessionData } = await supabase.auth.getSession()
+    const res = await fetch('https://ubjndgyukfhngytfabnw.supabase.co/functions/v1/send-admin-code', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionData.session.access_token}`,
+      },
+      body: JSON.stringify({ email: app.email, name: app.official_name, code }),
+    })
+
+    if (!res.ok) {
+      alert(`Approved, but the email failed to send. Share this code with them manually:\n\n${code}`)
+    } else {
+      alert(`✓ Approved! An email with their activation code has been sent to ${app.email}.`)
+    }
+    loadAll()
+  }
+
+  async function rejectApplication(app) {
+    const note = prompt('Reason for rejection (shown internally only):')
+    if (note === null) return
+    const { error } = await supabase.rpc('reject_admin_application', { p_application_id: app.id, p_note: note })
+    if (error) { alert('Error: ' + error.message); return }
+    loadAll()
+  }
+
+  async function viewIdPhoto(path) {
+    const { data, error } = await supabase.storage.from('admin-id-photos').createSignedUrl(path, 300)
+    if (error) { alert('Error loading photo: ' + error.message); return }
+    window.open(data.signedUrl, '_blank')
+  }
+
   if (loading) return <div className="section" style={{ maxWidth: 820 }}><h2 style={{ marginBottom: 20 }}>Profiles</h2><SkeletonList count={6} /></div>
+
+  const pendingApps = applications.filter(a => a.status === 'submitted')
 
   return (
     <div className="section" style={{ maxWidth: 820 }}>
@@ -68,6 +112,7 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
         {[
           ['businesses', `Businesses (${businesses.length})`],
           ['users', `Users (${users.length})`],
+          ...(isSuperadmin ? [['applications', `Admin Applications${pendingApps.length ? ` (${pendingApps.length})` : ''}`]] : []),
           ['personal', '🔒 Personal Info'],
         ].map(([id, label]) => (
           <button key={id} className={`filter-btn ${tab === id ? 'on' : ''}`} onClick={() => setTab(id)}>
@@ -98,21 +143,71 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
       {/* ══════ USERS ══════ */}
       {tab === 'users' && (
         <div className="admin-list">
-          {users.map((u) => (
-            <div className="admin-row" key={u.id}>
-              <div>
-                <button onClick={() => onSelectUser(u.id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-                  <strong style={{ color: '#1D9E75', textDecoration: 'underline' }}>@{u.username || 'no-username'}</strong>
-                </button>
-                {u.role !== 'user' && <span className="badge badge-verified" style={{ marginLeft: 8, textTransform: 'capitalize' }}>{u.role}</span>}
-                <div className="muted" style={{ fontSize: 13, marginTop: 3 }}>
-                  {u.name || '—'} · Joined {new Date(u.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+          {users.map((u) => {
+            const app = applications.find(a => a.user_id === u.id)
+            return (
+              <div className="admin-row" key={u.id}>
+                <div>
+                  <button onClick={() => onSelectUser(u.id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+                    <strong style={{ color: '#1D9E75', textDecoration: 'underline' }}>@{u.username || 'no-username'}</strong>
+                  </button>
+                  {u.role !== 'user' && <span className="badge badge-verified" style={{ marginLeft: 8, textTransform: 'capitalize' }}>{u.role}</span>}
+                  {app && app.status !== 'activated' && (
+                    <span className="badge badge-pending" style={{ marginLeft: 8, textTransform: 'capitalize' }}>Application: {app.status}</span>
+                  )}
+                  <div className="muted" style={{ fontSize: 13, marginTop: 3 }}>
+                    {u.name || '—'} · Joined {new Date(u.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </div>
                 </div>
+                {isSuperadmin && u.id !== currentUser.id && (
+                  <div className="admin-actions">
+                    {u.role === 'user' && !app && <button className="btn-ghost-small" onClick={() => inviteUser(u)}>Send admin application</button>}
+                    {u.role === 'user' && app && app.status === 'rejected' && <button className="btn-ghost-small" onClick={() => inviteUser(u)}>Re-invite</button>}
+                    {u.role === 'admin' && <button className="btn-ghost-small" style={{ color: '#E24B4A' }} onClick={() => demoteUser(u)}>Remove admin</button>}
+                  </div>
+                )}
               </div>
-              {isSuperadmin && u.id !== currentUser.id && (
+            )
+          })}
+        </div>
+      )}
+
+      {/* ══════ ADMIN APPLICATIONS (superadmin review) ══════ */}
+      {tab === 'applications' && isSuperadmin && (
+        <div className="admin-list">
+          {applications.length === 0 ? <p className="muted">No applications yet.</p> : applications.map((app) => (
+            <div className="admin-row" key={app.id} style={{ flexWrap: 'wrap' }}>
+              <div style={{ width: '100%' }}>
+                <strong>@{app.profiles?.username || 'user'}</strong>
+                <span className={`badge ${app.status === 'submitted' ? 'badge-pending' : app.status === 'approved' ? 'badge-verified' : app.status === 'rejected' ? 'badge-danger' : 'badge-pending'}`} style={{ marginLeft: 8, textTransform: 'capitalize' }}>
+                  {app.status}
+                </span>
+
+                {app.status === 'submitted' && (
+                  <div style={{ marginTop: 10, background: 'var(--surface-2)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+                    <div><strong>Official name:</strong> {app.official_name}</div>
+                    <div><strong>ID number:</strong> {app.id_number}</div>
+                    <div><strong>Date of birth:</strong> {app.date_of_birth}</div>
+                    <div><strong>Email:</strong> {app.email}</div>
+                    <div><strong>Phone:</strong> {app.phone}</div>
+                    {app.id_photo_url && (
+                      <button className="link-btn" style={{ margin: '4px 0 0', fontSize: 13 }} onClick={() => viewIdPhoto(app.id_photo_url)}>
+                        🪪 View ID photo →
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {app.status === 'invited' && <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>Waiting for user to fill in and submit the form.</div>}
+                {app.status === 'approved' && <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>Activation code emailed to {app.email} — waiting for them to activate.</div>}
+                {app.status === 'rejected' && <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>Rejected{app.review_note ? `: ${app.review_note}` : ''}</div>}
+                {app.status === 'activated' && <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>✓ Active admin since {new Date(app.activated_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>}
+              </div>
+
+              {app.status === 'submitted' && (
                 <div className="admin-actions">
-                  {u.role === 'user' && <button className="btn-ghost-small" onClick={() => promoteUser(u)}>Make admin</button>}
-                  {u.role === 'admin' && <button className="btn-ghost-small" style={{ color: '#E24B4A' }} onClick={() => demoteUser(u)}>Remove admin</button>}
+                  <button className="btn-small" onClick={() => approveApplication(app)}>Approve & send code</button>
+                  <button className="btn-ghost-small" onClick={() => rejectApplication(app)}>Reject</button>
                 </div>
               )}
             </div>

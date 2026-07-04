@@ -13,6 +13,8 @@ import AdminDashboard from './pages/AdminDashboard'
 import SetUsername from './pages/SetUsername'
 import ResetPassword from './pages/ResetPassword'
 import AdminProfiles from './pages/AdminProfiles'
+import AdminApplicationForm from './pages/AdminApplicationForm'
+import EnterAdminCode from './pages/EnterAdminCode'
 import Settings from './pages/Settings'
 import Support from './pages/Support'
 import './App.css'
@@ -30,6 +32,7 @@ function App() {
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [needsUsername, setNeedsUsername] = useState(false)
   const [recoveringPassword, setRecoveringPassword] = useState(false)
+  const [pendingApplication, setPendingApplication] = useState(null)
   const [restoring, setRestoring] = useState(true)
   const [theme, setTheme] = useState(() => localStorage.getItem('bizcheck_theme') || 'light')
   const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768)
@@ -159,7 +162,7 @@ function App() {
     const currentUser = data.user || null
     setUser(currentUser)
     if (currentUser) {
-      await Promise.all([checkAdmin(currentUser.id), checkUsername(currentUser.id)])
+      await Promise.all([checkAdmin(currentUser.id), checkUsername(currentUser.id), checkPendingApplication(currentUser.id)])
     }
     setCheckingAuth(false)
 
@@ -191,6 +194,15 @@ function App() {
       await new Promise(r => setTimeout(r, 1000))
     }
     setNeedsUsername(false)
+  }
+
+  async function checkPendingApplication(userId) {
+    const { data } = await supabase.from('admin_applications').select('status').eq('user_id', userId).single()
+    if (data && (data.status === 'invited' || data.status === 'approved')) {
+      setPendingApplication(data.status)
+    } else {
+      setPendingApplication(null)
+    }
   }
 
   async function checkAdmin(userId) {
@@ -255,6 +267,19 @@ function App() {
 
   if (user && needsUsername) {
     return <SetUsername user={user} onDone={() => setNeedsUsername(false)} />
+  }
+
+  if (user && pendingApplication === 'invited') {
+    return <AdminApplicationForm currentUser={user} onDone={() => { setPendingApplication('submitted'); checkPendingApplication(user.id) }} />
+  }
+
+  if (user && pendingApplication === 'approved') {
+    return (
+      <EnterAdminCode
+        onActivated={() => { setPendingApplication(null); checkAdmin(user.id); navigate('home') }}
+        onBack={() => setPendingApplication(null)}
+      />
+    )
   }
 
   // Not logged in — no sidebar, simple top nav for landing/auth
