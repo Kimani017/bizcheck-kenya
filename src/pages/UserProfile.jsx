@@ -61,6 +61,13 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
   const isOwner = currentUser?.id === profileUserId
   const canSeePrivate = isOwner || isAdmin
   const T = THEMES[activeTab] || THEMES.business
+  const [isNarrow, setIsNarrow] = useState(isNarrow)
+
+  useEffect(() => {
+    function checkSize() { setIsNarrow(isNarrow) }
+    window.addEventListener('resize', checkSize)
+    return () => window.removeEventListener('resize', checkSize)
+  }, [])
 
   useEffect(() => {
     if (profileUserId) loadAll()
@@ -89,11 +96,22 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
         const [revRes, voteRes, viewRes] = await Promise.all([
           supabase.from('reviews').select('*, businesses(name, category)').eq('reviewer_id', profileUserId).order('created_at', { ascending: false }),
           supabase.from('votes').select('*, businesses(name)').eq('user_id', profileUserId).order('created_at', { ascending: false }),
-          supabase.from('profile_views').select('*, businesses(name, category, status)').eq('viewer_id', profileUserId).order('created_at', { ascending: false }).limit(30),
+          supabase.from('profile_views').select('*, businesses(name, category, status)').eq('viewer_id', profileUserId).order('created_at', { ascending: false }).limit(150),
         ])
         setReviews(revRes.data || [])
         setVotes(voteRes.data || [])
-        setViewedBusinesses(viewRes.data || [])
+        const rawViews = viewRes.data || []
+        // Deduplicate by business — a business visited multiple times counts once,
+        // keeping only the most recent visit (since rows are already ordered newest first)
+        const seen = new Set()
+        const uniqueViews = []
+        for (const v of rawViews) {
+          if (!seen.has(v.business_id)) {
+            seen.add(v.business_id)
+            uniqueViews.push(v)
+          }
+        }
+        setViewedBusinesses(uniqueViews)
       }
     } catch (err) {
       console.error('UserProfile error:', err)
@@ -150,10 +168,18 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
 
       {/* ── FLOATING CARD ── */}
       <div style={{ margin: '-52px 14px 0', position: 'relative', zIndex: 10 }}>
-        <div style={{ background: 'var(--surface)', borderRadius: 18, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--surface)', borderRadius: 18, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', overflow: 'hidden', display: 'flex', flexDirection: isNarrow ? 'column' : 'row' }}>
 
-          {/* TAB ROW */}
-          <div style={{ display: 'flex', background: 'var(--surface)' }}>
+          {/* SIDE TAB COLUMN */}
+          <div style={{
+            display: 'flex',
+            flexDirection: isNarrow ? 'row' : 'column',
+            background: 'var(--surface)',
+            width: isNarrow ? '100%' : 160,
+            flexShrink: 0,
+            borderRight: isNarrow ? 'none' : '1px solid var(--border)',
+            borderBottom: isNarrow ? '1px solid var(--border)' : 'none',
+          }}>
             {visibleTabs.map((tab) => {
               const isActive = activeTab === tab.id
               const tabTheme = THEMES[tab.id]
@@ -162,23 +188,27 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   style={{
-                    flex: 1, padding: '15px 6px 12px',
+                    flex: isNarrow ? 1 : 'none',
+                    padding: isNarrow ? '14px 6px' : '16px 18px',
                     border: 'none', cursor: 'pointer',
                     background: isActive ? tabTheme.accentLight : 'var(--surface)',
-                    borderBottom: isActive ? `3px solid ${tabTheme.accent}` : '3px solid transparent',
+                    borderLeft: isNarrow ? 'none' : (isActive ? `3px solid ${tabTheme.accent}` : '3px solid transparent'),
+                    borderBottom: isNarrow ? (isActive ? `3px solid ${tabTheme.accent}` : '3px solid transparent') : 'none',
                     color: isActive ? tabTheme.accentDark : 'var(--text-muted)',
-                    fontSize: 12, fontWeight: 700,
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    fontSize: 13, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: isNarrow ? 'center' : 'flex-start', gap: 8,
                     transition: 'all 0.2s',
-                    letterSpacing: '0.3px',
+                    letterSpacing: '0.3px', textAlign: 'left', width: isNarrow ? 'auto' : '100%',
                   }}
                 >
-                  <span style={{ fontSize: 20 }}>{tab.icon}</span>
                   {tab.label}
                 </button>
               )
             })}
           </div>
+
+          {/* CONTENT COLUMN */}
+          <div style={{ flex: 1, minWidth: 0 }}>
 
           {/* ── MY BUSINESS ── */}
           {activeTab === 'business' && (
@@ -352,6 +382,7 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
               )}
             </div>
           )}
+          </div>
         </div>
       </div>
       <div style={{ height: 32 }} />
@@ -360,15 +391,23 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
 }
 
 // ── SECTION HEADER ──
-function Section({ title, count, icon, theme, children }) {
+function Section({ title, count, icon, theme, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 10 : 0,
+          background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%',
+        }}
+      >
         <span style={{ fontSize: 16 }}>{icon}</span>
-        <h4 style={{ fontSize: 14, fontWeight: 700, color: theme.accentDark }}>{title}</h4>
+        <h4 style={{ fontSize: 14, fontWeight: 700, color: theme.accentDark, margin: 0 }}>{title}</h4>
         <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>({count})</span>
-      </div>
-      {children}
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)', transition: 'transform 0.2s', transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+      </button>
+      {open && children}
     </div>
   )
 }
