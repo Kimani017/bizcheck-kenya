@@ -11,6 +11,7 @@ import Auth from './pages/Auth'
 import SubmitBusiness from './pages/SubmitBusiness'
 import AdminDashboard from './pages/AdminDashboard'
 import SetUsername from './pages/SetUsername'
+import ResetPassword from './pages/ResetPassword'
 import Settings from './pages/Settings'
 import Support from './pages/Support'
 import './App.css'
@@ -27,6 +28,7 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [needsUsername, setNeedsUsername] = useState(false)
+  const [recoveringPassword, setRecoveringPassword] = useState(false)
   const [restoring, setRestoring] = useState(true)
   const [theme, setTheme] = useState(() => localStorage.getItem('bizcheck_theme') || 'light')
   const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768)
@@ -111,6 +113,12 @@ function App() {
     window.addEventListener('popstate', onPopState)
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        // User clicked the reset link — show the set-new-password screen
+        setUser(session?.user || null)
+        setRecoveringPassword(true)
+        return
+      }
       if (event === 'SIGNED_OUT') {
         setUser(null)
         setIsAdmin(false)
@@ -238,6 +246,10 @@ function App() {
         <div style={{ color: '#1D9E75', fontSize: 16 }}>Loading…</div>
       </div>
     )
+  }
+
+  if (recoveringPassword) {
+    return <ResetPassword onDone={() => { setRecoveringPassword(false); navigate('home') }} />
   }
 
   if (user && needsUsername) {
