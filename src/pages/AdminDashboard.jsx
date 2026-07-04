@@ -1,30 +1,27 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
+const FLAG_THRESHOLD = 6
+const SCAM_THRESHOLD = 10
+
 export default function AdminDashboard() {
-  const [tab, setTab] = useState('submissions')
+  const [mainTab, setMainTab] = useState('businesses') // businesses | reports | verification
+  const [bizSubTab, setBizSubTab] = useState('verified') // verified | flagged | scam
+  const [reportSubTab, setReportSubTab] = useState('pending') // pending | reported | log
+
+  const [businesses, setBusinesses] = useState([])
   const [submissions, setSubmissions] = useState([])
   const [reports, setReports] = useState([])
-  const [businesses, setBusinesses] = useState([])
-  const [reportFilter, setReportFilter] = useState('pending') // pending | verified | dismissed | all
-  const [bizFilter, setBizFilter] = useState('all') // all | verified | flagged | banned | pending
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(null)
+  const [currentAdminId, setCurrentAdminId] = useState(null)
 
-  useEffect(() => {
-    checkAdmin()
-  }, [])
-
-  useEffect(() => {
-    if (isAdmin) loadReports()
-  }, [reportFilter, isAdmin])
+  useEffect(() => { checkAdmin() }, [])
 
   async function checkAdmin() {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setIsAdmin(false)
-      return
-    }
+    if (!user) { setIsAdmin(false); return }
+    setCurrentAdminId(user.id)
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     const admin = profile && ['admin', 'superadmin'].includes(profile.role)
     setIsAdmin(admin)
@@ -33,337 +30,351 @@ export default function AdminDashboard() {
 
   async function loadAll() {
     setLoading(true)
-
-    // Fetch submissions separately so we can debug
-    const subRes = await supabase
-      .from('submissions')
-      .select('*')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-
-    console.log('Submissions result:', subRes)
-    console.log('Submissions data:', subRes.data)
-    console.log('Submissions error:', subRes.error)
-
-    // Also try without the status filter
-    const allSubs = await supabase.from('submissions').select('*')
-    console.log('All submissions:', allSubs.data)
-    console.log('All submissions error:', allSubs.error)
-
-    const bizRes = await supabase
-      .from('businesses')
-      .select('*')
-      .order('trust_score', { ascending: false })
-
-    setSubmissions(subRes.data || [])
+    const [bizRes, subRes, repRes] = await Promise.all([
+      supabase.from('businesses').select('*').order('unique_reporter_count', { ascending: false }),
+      supabase.from('submissions').select('*, profiles(name, email, username)').eq('status', 'pending').order('created_at', { ascending: false }),
+      supabase.from('reports').select('*, businesses(name, status, unique_reporter_count)').order('created_at', { ascending: false }),
+    ])
     setBusinesses(bizRes.data || [])
-    await loadReports()
+    setSubmissions(subRes.data || [])
+    setReports(repRes.data || [])
     setLoading(false)
   }
 
-  async function loadReports() {
-    let q = supabase.from('reports').select('*').order('created_at', { ascending: false })
-    if (reportFilter !== 'all') q = q.eq('status', reportFilter)
-    const { data } = await q
-    setReports(data || [])
+  // ── STATUS CHANGE (via safe RPC function with audit log) ──
+  async function setBusinessStatus(businessId, status) {
+    const { error } = await supabase.rpc('admin_set_business_status', {
+      p_business_id: businessId, p_status: status, p_admin_id: currentAdminId,
+    })
+    if (error) { alert('Error: ' + error.message); return }
+    loadAll()
   }
 
+  // ── SUBMISSIONS ──
   async function approveSubmission(sub) {
-    const { data: { user } } = await supabase.auth.getUser()
-
-    // Check if a business with the same name already exists to avoid duplicates
-    const { data: existing } = await supabase
-      .from('businesses')
-      .select('id')
-      .ilike('name', sub.name)
-      .single()
+    const { data: existing } = await supabase.from('businesses').select('id').ilike('name', sub.name).single()
 
     if (existing) {
-      // Business already exists — just update it and link owner
-      const { error: updateError } = await supabase.from('businesses').update({
-        category: sub.category,
-        description: sub.description,
-        phone: sub.phone,
-        mpesa_till: sub.mpesa_till,
-        fb_handle: sub.fb_handle,
-        tiktok_handle: sub.tiktok_handle,
-        instagram_handle: sub.instagram_handle,
-        owner_id: sub.submitter_id,
-        status: 'verified',
+      const { error } = await supabase.from('businesses').update({
+        category: sub.category, description: sub.description, phone: sub.phone,
+        mpesa_till: sub.mpesa_till, fb_handle: sub.fb_handle, tiktok_handle: sub.tiktok_handle,
+        instagram_handle: sub.instagram_handle, owner_id: sub.submitter_id, status: 'verified',
       }).eq('id', existing.id)
-
-      if (updateError) { alert('Error approving: ' + updateError.message); return }
+      if (error) { alert('Error: ' + error.message); return }
     } else {
-      // Business does not exist — create it fresh
-      const { error: insertError } = await supabase.from('businesses').insert({
-        name: sub.name,
-        category: sub.category,
-        description: sub.description,
-        phone: sub.phone,
-        mpesa_till: sub.mpesa_till,
-        fb_handle: sub.fb_handle,
-        tiktok_handle: sub.tiktok_handle,
-        instagram_handle: sub.instagram_handle,
-        logo_url: sub.logo_url,
-        owner_id: sub.submitter_id,
-        status: 'verified',
+      const { error } = await supabase.from('businesses').insert({
+        name: sub.name, category: sub.category, description: sub.description,
+        phone: sub.phone, mpesa_till: sub.mpesa_till, fb_handle: sub.fb_handle,
+        tiktok_handle: sub.tiktok_handle, instagram_handle: sub.instagram_handle,
+        location: sub.location, owner_id: sub.submitter_id, status: 'verified',
       })
-
-      if (insertError) { alert('Error approving: ' + insertError.message); return }
+      if (error) { alert('Error: ' + error.message); return }
     }
 
-    // Mark submission as approved
     await supabase.from('submissions').update({
-      status: 'approved',
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
+      status: 'approved', reviewed_by: currentAdminId, reviewed_at: new Date().toISOString(),
     }).eq('id', sub.id)
 
     await supabase.from('audit_log').insert({
-      admin_id: user.id,
-      action_type: 'approve_submission',
-      target_table: 'submissions',
-      target_id: sub.id,
+      admin_id: currentAdminId, action_type: 'approve_submission', target_table: 'submissions', target_id: sub.id,
     })
-
     loadAll()
   }
 
   async function rejectSubmission(sub) {
-    const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('submissions').update({
-      status: 'rejected',
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
+      status: 'rejected', reviewed_by: currentAdminId, reviewed_at: new Date().toISOString(),
     }).eq('id', sub.id)
-
     await supabase.from('audit_log').insert({
-      admin_id: user.id,
-      action_type: 'reject_submission',
-      target_table: 'submissions',
-      target_id: sub.id,
+      admin_id: currentAdminId, action_type: 'reject_submission', target_table: 'submissions', target_id: sub.id,
     })
-
     loadAll()
   }
 
-  // Verify a report: flags the linked business, OR creates a new
-  // flagged business record if the report wasn't linked to one yet.
-  async function verifyReport(report) {
-    const { data: { user } } = await supabase.auth.getUser()
+  // ── REPORTS ──
+  async function dismissReport(report) {
+    await supabase.from('reports').update({
+      status: 'dismissed', reviewed_by: currentAdminId, reviewed_at: new Date().toISOString(),
+    }).eq('id', report.id)
+    await supabase.from('audit_log').insert({
+      admin_id: currentAdminId, action_type: 'dismiss_report', target_table: 'reports', target_id: report.id,
+    })
+    loadAll()
+  }
+
+  async function acknowledgeReport(report) {
     let businessId = report.business_id
 
-    if (businessId) {
-      // Already linked to an existing business — just flag it
-      await supabase.from('businesses').update({ status: 'flagged' }).eq('id', businessId)
-    } else {
-      // No matching business yet — create one so it shows up as flagged
-      const { data: newBiz, error: createError } = await supabase
-        .from('businesses')
-        .insert({
-          name: report.business_name,
-          category: 'Other',
-          phone: null,
-          status: 'flagged',
-          description: `Auto-created from a verified scam report: ${report.description || report.scam_type}`,
-        })
-        .select()
-        .single()
-
-      if (createError) {
-        alert('Error creating flagged business: ' + createError.message)
-        return
-      }
+    if (!businessId) {
+      // First-ever report on this name — create a stored record so future reports link to it
+      const { data: newBiz, error } = await supabase.from('businesses').insert({
+        name: report.business_name, category: 'Other', status: 'pending',
+        description: `Stored from scam report: ${report.description || report.scam_type}`,
+      }).select().single()
+      if (error) { alert('Error: ' + error.message); return }
       businessId = newBiz.id
-
-      // Link the report to the newly created business
       await supabase.from('reports').update({ business_id: businessId }).eq('id', report.id)
     }
 
     await supabase.from('reports').update({
-      status: 'verified',
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
+      status: 'verified', reviewed_by: currentAdminId, reviewed_at: new Date().toISOString(),
     }).eq('id', report.id)
 
     await supabase.from('audit_log').insert({
-      admin_id: user.id,
-      action_type: 'verify_report',
-      target_table: 'reports',
-      target_id: report.id,
-    })
-
-    loadAll()
-  }
-
-  async function dismissReport(report) {
-    const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('reports').update({
-      status: 'dismissed',
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
-    }).eq('id', report.id)
-
-    await supabase.from('audit_log').insert({
-      admin_id: user.id,
-      action_type: 'dismiss_report',
-      target_table: 'reports',
-      target_id: report.id,
-    })
-
-    loadAll()
-  }
-
-  async function banBusiness(biz) {
-    const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('businesses').update({ status: 'banned' }).eq('id', biz.id)
-    await supabase.from('audit_log').insert({
-      admin_id: user.id,
-      action_type: 'ban_business',
-      target_table: 'businesses',
-      target_id: biz.id,
-    })
-    loadAll()
-  }
-
-  async function unbanBusiness(biz, newStatus) {
-    const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('businesses').update({ status: newStatus }).eq('id', biz.id)
-    await supabase.from('audit_log').insert({
-      admin_id: user.id,
-      action_type: 'unban_user',
-      target_table: 'businesses',
-      target_id: biz.id,
-      note: `Unbanned, restored to status: ${newStatus}`,
+      admin_id: currentAdminId, action_type: 'verify_report', target_table: 'reports', target_id: report.id,
     })
     loadAll()
   }
 
   if (isAdmin === null) return <div className="section"><p className="muted">Checking access…</p></div>
   if (isAdmin === false) return <div className="section"><p className="muted">You don't have admin access.</p></div>
+  if (loading) return <div className="section"><p className="muted">Loading dashboard…</p></div>
+
+  // ── Derived data ──
+  const verifiedBiz = businesses.filter(b => b.status === 'verified')
+  const flaggedBiz = businesses.filter(b => b.status === 'flagged')
+  const scamBiz = businesses.filter(b => b.status === 'scam')
+  const pendingReports = reports.filter(r => r.status === 'pending')
+
+  // Businesses that have been reported at all (grouped)
+  const reportedBusinessMap = {}
+  reports.forEach(r => {
+    if (!r.business_id) return
+    if (!reportedBusinessMap[r.business_id]) {
+      reportedBusinessMap[r.business_id] = {
+        business: r.businesses,
+        businessId: r.business_id,
+        reportCount: 0,
+        reports: [],
+      }
+    }
+    reportedBusinessMap[r.business_id].reportCount++
+    reportedBusinessMap[r.business_id].reports.push(r)
+  })
+  const reportedBusinesses = Object.values(reportedBusinessMap).sort(
+    (a, b) => (b.business?.unique_reporter_count || 0) - (a.business?.unique_reporter_count || 0)
+  )
+
+  const needsReviewCount = businesses.filter(b =>
+    (b.unique_reporter_count >= FLAG_THRESHOLD && b.status === 'verified') ||
+    (b.unique_reporter_count >= SCAM_THRESHOLD && b.status !== 'scam')
+  ).length
 
   return (
-    <div className="section">
-      <h2>Admin dashboard</h2>
-      <div className="filter-row">
-        <button className={`filter-btn ${tab === 'submissions' ? 'on' : ''}`} onClick={() => setTab('submissions')}>
-          Pending submissions ({submissions.length})
-        </button>
-        <button className={`filter-btn ${tab === 'reports' ? 'on' : ''}`} onClick={() => setTab('reports')}>
-          Reports
-        </button>
-        <button className={`filter-btn ${tab === 'businesses' ? 'on' : ''}`} onClick={() => setTab('businesses')}>
-          All businesses ({businesses.length})
-        </button>
+    <div className="section" style={{ maxWidth: 920 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <h2 style={{ margin: 0 }}>Admin Dashboard</h2>
+        {needsReviewCount > 0 && (
+          <span style={{ background: '#FCEBEB', color: '#A32D2D', padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>
+            🔔 {needsReviewCount} business{needsReviewCount !== 1 ? 'es' : ''} need review
+          </span>
+        )}
       </div>
 
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : (
-        <>
-          {tab === 'submissions' && (
-            submissions.length === 0 ? <p className="muted">No pending submissions.</p> :
+      {/* MAIN TABS */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+        {[
+          ['businesses', 'All Businesses'],
+          ['reports', 'Reports'],
+          ['verification', `Business Verification${submissions.length ? ` (${submissions.length})` : ''}`],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setMainTab(id)}
+            style={{
+              padding: '10px 18px', border: 'none', background: 'none', cursor: 'pointer',
+              fontSize: 14, fontWeight: 700,
+              color: mainTab === id ? '#1D9E75' : 'var(--text-muted)',
+              borderBottom: mainTab === id ? '3px solid #1D9E75' : '3px solid transparent',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ══════════════ ALL BUSINESSES ══════════════ */}
+      {mainTab === 'businesses' && (
+        <div>
+          <div className="filter-row" style={{ marginBottom: 18 }}>
+            {[
+              ['verified', `Verified (${verifiedBiz.length})`],
+              ['flagged', `Flagged (${flaggedBiz.length})`],
+              ['scam', `Scammers (${scamBiz.length})`],
+            ].map(([id, label]) => (
+              <button key={id} className={`filter-btn ${bizSubTab === id ? 'on' : ''}`} onClick={() => setBizSubTab(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {(bizSubTab === 'verified' ? verifiedBiz : bizSubTab === 'flagged' ? flaggedBiz : scamBiz).map((b) => (
+              <BusinessAdminRow key={b.id} business={b} onSetStatus={setBusinessStatus} thresholds={{ FLAG_THRESHOLD, SCAM_THRESHOLD }} />
+            ))}
+            {(bizSubTab === 'verified' ? verifiedBiz : bizSubTab === 'flagged' ? flaggedBiz : scamBiz).length === 0 && (
+              <p className="muted">No businesses in this category.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════ REPORTS ══════════════ */}
+      {mainTab === 'reports' && (
+        <div>
+          <div className="filter-row" style={{ marginBottom: 18 }}>
+            {[
+              ['pending', `Pending Reports (${pendingReports.length})`],
+              ['reported', `Businesses Reported (${reportedBusinesses.length})`],
+              ['log', `Report Log (${reports.length})`],
+            ].map(([id, label]) => (
+              <button key={id} className={`filter-btn ${reportSubTab === id ? 'on' : ''}`} onClick={() => setReportSubTab(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* PENDING REPORTS */}
+          {reportSubTab === 'pending' && (
+            pendingReports.length === 0 ? <p className="muted">No pending reports.</p> :
             <div className="admin-list">
-              {submissions.map((s) => (
-                <div className="admin-row" key={s.id}>
+              {pendingReports.map((r) => (
+                <div className="admin-row" key={r.id}>
                   <div>
-                    <strong>{s.name}</strong> <span className="muted">— {s.category}</span>
-                    <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-                      {s.location && `📍 ${s.location} · `}{s.phone} {s.mpesa_till && `· ${s.mpesa_till}`} {s.fb_handle && `· ${s.fb_handle}`}
-                    </div>
-                    {s.description && <div style={{ fontSize: 13, marginTop: 4 }}>{s.description}</div>}
-                    <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                      Submitted by: {s.profiles?.name || s.profiles?.username || 'Unknown'} · {new Date(s.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </div>
+                    <strong>{r.business_name}</strong> <span className="muted">— {r.scam_type.replace('_', ' ')}</span>
+                    {r.businesses && (
+                      <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+                        ({r.businesses.unique_reporter_count} unique reporter{r.businesses.unique_reporter_count !== 1 ? 's' : ''} so far)
+                      </span>
+                    )}
+                    {r.amount_lost && <div className="muted" style={{ fontSize: 13 }}>Lost: Ksh {r.amount_lost}</div>}
+                    {r.description && <div style={{ fontSize: 13, marginTop: 4 }}>{r.description}</div>}
                   </div>
                   <div className="admin-actions">
-                    <button className="btn-small" onClick={() => approveSubmission(s)}>Approve</button>
-                    <button className="btn-ghost-small" onClick={() => rejectSubmission(s)}>Reject</button>
+                    <button className="btn-small" onClick={() => acknowledgeReport(r)}>Acknowledge & store</button>
+                    <button className="btn-ghost-small" onClick={() => dismissReport(r)}>Dismiss</button>
                   </div>
                 </div>
               ))}
             </div>
           )}
 
-          {tab === 'reports' && (
-            <>
-              <div className="filter-row" style={{ marginBottom: 14 }}>
-                {['pending', 'verified', 'dismissed', 'all'].map((f) => (
-                  <button
-                    key={f}
-                    className={`filter-btn ${reportFilter === f ? 'on' : ''}`}
-                    onClick={() => setReportFilter(f)}
-                  >
-                    {f.charAt(0).toUpperCase() + f.slice(1)}
-                  </button>
-                ))}
-              </div>
-              {reports.length === 0 ? <p className="muted">No {reportFilter !== 'all' ? reportFilter : ''} reports.</p> :
-              <div className="admin-list">
-                {reports.map((r) => (
-                  <div className="admin-row" key={r.id}>
+          {/* BUSINESSES REPORTED */}
+          {reportSubTab === 'reported' && (
+            reportedBusinesses.length === 0 ? <p className="muted">No businesses have been reported yet.</p> :
+            <div className="admin-list">
+              {reportedBusinesses.map((rb) => {
+                const biz = rb.business
+                const count = biz?.unique_reporter_count || rb.reportCount
+                const needsFlagReview = count >= FLAG_THRESHOLD && biz?.status === 'verified'
+                const needsScamReview = count >= SCAM_THRESHOLD && biz?.status !== 'scam'
+                return (
+                  <div className="admin-row" key={rb.businessId} style={{ flexWrap: 'wrap' }}>
                     <div>
-                      <strong>{r.business_name}</strong> <span className="muted">— {r.scam_type.replace('_', ' ')}</span>
-                      <span className={`badge ${r.status === 'verified' ? 'badge-danger' : r.status === 'dismissed' ? 'badge-verified' : 'badge-pending'}`} style={{ marginLeft: 8 }}>
-                        {r.status}
+                      <strong>{biz?.name || 'Unknown business'}</strong>
+                      <span className={`badge ${biz?.status === 'verified' ? 'badge-verified' : biz?.status === 'scam' ? 'badge-danger' : 'badge-pending'}`} style={{ marginLeft: 8 }}>
+                        {biz?.status}
                       </span>
-                      {r.amount_lost && <div className="muted" style={{ fontSize: 13 }}>Lost: Ksh {r.amount_lost}</div>}
-                      {r.description && <div style={{ fontSize: 13, marginTop: 4 }}>{r.description}</div>}
-                    </div>
-                    {r.status === 'pending' && (
-                      <div className="admin-actions">
-                        <button className="btn-small" onClick={() => verifyReport(r)}>Verify & flag</button>
-                        <button className="btn-ghost-small" onClick={() => dismissReport(r)}>Dismiss</button>
+                      <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                        {count} unique reporter{count !== 1 ? 's' : ''} · {rb.reportCount} total report{rb.reportCount !== 1 ? 's' : ''}
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>}
-            </>
-          )}
-
-          {tab === 'businesses' && (
-            <>
-              <div className="filter-row" style={{ marginBottom: 14 }}>
-                {['all', 'verified', 'flagged', 'banned', 'pending'].map((f) => (
-                  <button
-                    key={f}
-                    className={`filter-btn ${bizFilter === f ? 'on' : ''}`}
-                    onClick={() => setBizFilter(f)}
-                  >
-                    {f.charAt(0).toUpperCase() + f.slice(1)}
-                  </button>
-                ))}
-              </div>
-              <div className="admin-list">
-                {businesses.filter(b => bizFilter === 'all' || b.status === bizFilter).map((b) => (
-                  <div className="admin-row" key={b.id}>
-                    <div>
-                      <strong>{b.name}</strong> <span className="muted">— {b.category}</span>
-                      <div className="muted" style={{ fontSize: 13 }}>
-                        Status: {b.status} · Trust: {b.trust_score}% · {b.legit_votes} legit / {b.scam_votes} scam
-                      </div>
-                    </div>
-                    <div className="admin-actions">
-                      {b.status !== 'banned' ? (
-                        <button className="btn-ghost-small" onClick={() => banBusiness(b)}>Ban</button>
-                      ) : (
-                        <>
-                          <button className="btn-small" onClick={() => unbanBusiness(b, 'verified')}>Unban → Verified</button>
-                          <button className="btn-ghost-small" onClick={() => unbanBusiness(b, 'flagged')}>Unban → Flagged</button>
-                        </>
+                      {needsScamReview && (
+                        <div style={{ color: '#A32D2D', fontSize: 12, fontWeight: 700, marginTop: 4 }}>
+                          🚨 {SCAM_THRESHOLD}+ reporters reached — consider marking as scam
+                        </div>
+                      )}
+                      {!needsScamReview && needsFlagReview && (
+                        <div style={{ color: '#854D0E', fontSize: 12, fontWeight: 700, marginTop: 4 }}>
+                          ⚠ {FLAG_THRESHOLD}+ reporters reached — consider flagging
+                        </div>
                       )}
                     </div>
+                    <div className="admin-actions">
+                      {biz?.status !== 'flagged' && <button className="btn-ghost-small" onClick={() => setBusinessStatus(rb.businessId, 'flagged')}>Mark flagged</button>}
+                      {biz?.status !== 'scam' && <button className="btn-small" style={{ background: '#A32D2D' }} onClick={() => setBusinessStatus(rb.businessId, 'scam')}>Mark scam</button>}
+                      {biz?.status !== 'verified' && <button className="btn-ghost-small" onClick={() => setBusinessStatus(rb.businessId, 'verified')}>Restore verified</button>}
+                    </div>
                   </div>
-                ))}
-                {businesses.filter(b => bizFilter === 'all' || b.status === bizFilter).length === 0 && (
-                  <p className="muted">No businesses with this status.</p>
-                )}
-              </div>
-            </>
+                )
+              })}
+            </div>
           )}
-        </>
+
+          {/* REPORT LOG */}
+          {reportSubTab === 'log' && (
+            reports.length === 0 ? <p className="muted">No reports have been filed yet.</p> :
+            <div className="admin-list">
+              {reports.map((r) => (
+                <div className="admin-row" key={r.id}>
+                  <div>
+                    <strong>{r.business_name}</strong>
+                    <span className={`badge ${r.status === 'verified' ? 'badge-danger' : r.status === 'dismissed' ? 'badge-verified' : 'badge-pending'}`} style={{ marginLeft: 8 }}>
+                      {r.status}
+                    </span>
+                    <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                      Reason: {r.scam_type.replace('_', ' ')} {r.amount_lost && `· Lost Ksh ${r.amount_lost}`}
+                    </div>
+                    {r.description && <div style={{ fontSize: 13, marginTop: 4 }}>{r.description}</div>}
+                    <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                      Filed {new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
+
+      {/* ══════════════ BUSINESS VERIFICATION ══════════════ */}
+      {mainTab === 'verification' && (
+        submissions.length === 0 ? <p className="muted">No pending business verifications.</p> :
+        <div className="admin-list">
+          {submissions.map((s) => (
+            <div className="admin-row" key={s.id}>
+              <div>
+                <strong>{s.name}</strong> <span className="muted">— {s.category}</span>
+                <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                  {s.location && `📍 ${s.location} · `}{s.phone} {s.mpesa_till && `· ${s.mpesa_till}`} {s.fb_handle && `· ${s.fb_handle}`}
+                </div>
+                {s.description && <div style={{ fontSize: 13, marginTop: 4 }}>{s.description}</div>}
+                <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                  Submitted by: {s.profiles?.name || s.profiles?.username || 'Unknown'} · {new Date(s.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+              </div>
+              <div className="admin-actions">
+                <button className="btn-small" onClick={() => approveSubmission(s)}>Approve</button>
+                <button className="btn-ghost-small" onClick={() => rejectSubmission(s)}>Reject</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Business row in "All Businesses" tab ──
+function BusinessAdminRow({ business: b, onSetStatus, thresholds }) {
+  const needsFlagReview = b.unique_reporter_count >= thresholds.FLAG_THRESHOLD && b.status === 'verified'
+  const needsScamReview = b.unique_reporter_count >= thresholds.SCAM_THRESHOLD && b.status !== 'scam'
+
+  return (
+    <div className="admin-row" style={{ flexWrap: 'wrap' }}>
+      <div>
+        <strong>{b.name}</strong> <span className="muted">— {b.category}</span>
+        <div className="muted" style={{ fontSize: 13 }}>
+          Trust: {b.trust_score}% · {b.legit_votes} legit / {b.scam_votes} scam votes · {b.unique_reporter_count} unique reporters
+        </div>
+        {needsScamReview && <div style={{ color: '#A32D2D', fontSize: 12, fontWeight: 700, marginTop: 4 }}>🚨 Reached scam threshold ({thresholds.SCAM_THRESHOLD}+ reporters)</div>}
+        {!needsScamReview && needsFlagReview && <div style={{ color: '#854D0E', fontSize: 12, fontWeight: 700, marginTop: 4 }}>⚠ Reached flag threshold ({thresholds.FLAG_THRESHOLD}+ reporters)</div>}
+      </div>
+      <div className="admin-actions">
+        {b.status !== 'verified' && <button className="btn-ghost-small" onClick={() => onSetStatus(b.id, 'verified')}>Verify</button>}
+        {b.status !== 'flagged' && <button className="btn-ghost-small" onClick={() => onSetStatus(b.id, 'flagged')}>Flag</button>}
+        {b.status !== 'scam' && <button className="btn-small" style={{ background: '#A32D2D' }} onClick={() => onSetStatus(b.id, 'scam')}>Mark scam</button>}
+        {b.status !== 'banned' && <button className="btn-ghost-small" onClick={() => onSetStatus(b.id, 'banned')}>Ban</button>}
+      </div>
     </div>
   )
 }
