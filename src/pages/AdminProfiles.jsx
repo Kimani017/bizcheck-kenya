@@ -14,6 +14,10 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
   const [unlocking, setUnlocking] = useState(false)
   const [unlockError, setUnlockError] = useState('')
   const [personalInfo, setPersonalInfo] = useState(null)
+  const [expandedAdminId, setExpandedAdminId] = useState(null)
+  const [editingAdminId, setEditingAdminId] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  const [savingEdit, setSavingEdit] = useState(false)
 
   useEffect(() => { loadAll() }, [])
 
@@ -84,6 +88,41 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
       alert(`✓ Approved! An email with their activation code has been sent to ${app.email}.`)
     }
     loadAll()
+  }
+
+  async function cancelInvite(app) {
+    if (!confirm(`Cancel the pending invitation to @${app.profiles?.username || 'this user'}? They will no longer see the application form.`)) return
+    const { error } = await supabase.rpc('cancel_admin_invite', { p_application_id: app.id })
+    if (error) { alert('Error: ' + error.message); return }
+    loadAll()
+  }
+
+  function startEdit(p) {
+    setEditingAdminId(p.id)
+    setEditForm({
+      name: p.name || '', email: p.email || '', phone: p.phone || '',
+      national_id: p.national_id || '', application_id: p.application_id || null,
+    })
+  }
+
+  async function saveAdminEdit(personId) {
+    setSavingEdit(true)
+    const { error: profileError } = await supabase.from('profiles').update({
+      name: editForm.name, email: editForm.email, phone: editForm.phone,
+    }).eq('id', personId)
+
+    let appError = null
+    if (editForm.application_id) {
+      const { error } = await supabase.from('admin_applications').update({
+        official_name: editForm.name, email: editForm.email, phone: editForm.phone, id_number: editForm.national_id,
+      }).eq('id', editForm.application_id)
+      appError = error
+    }
+
+    setSavingEdit(false)
+    if (profileError || appError) { alert('Error saving: ' + (profileError?.message || appError?.message)); return }
+    setEditingAdminId(null)
+    unlockPersonalInfo() // refresh with the same code already entered
   }
 
   async function cancelApproval(app) {
@@ -211,6 +250,12 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
                 {app.status === 'activated' && <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>✓ Active admin since {new Date(app.activated_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>}
               </div>
 
+              {app.status === 'invited' && (
+                <div className="admin-actions">
+                  <button className="btn-ghost-small" style={{ color: '#E24B4A' }} onClick={() => cancelInvite(app)}>Cancel invite</button>
+                </div>
+              )}
+
               {app.status === 'submitted' && (
                 <div className="admin-actions">
                   <button className="btn-small" onClick={() => approveApplication(app)}>Approve & send code</button>
@@ -234,9 +279,9 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
         personalInfo === null ? (
           <div style={{ maxWidth: 420, margin: '30px auto', textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 32 }}>
             <div style={{ fontSize: 44, marginBottom: 12 }}>🔒</div>
-            <h3 style={{ marginBottom: 6, color: 'var(--text-strong)' }}>Encrypted personal data</h3>
+            <h3 style={{ marginBottom: 6, color: 'var(--text-strong)' }}>Encrypted admin records</h3>
             <p className="muted" style={{ fontSize: 13, marginBottom: 20 }}>
-              This section contains sensitive user details including national ID numbers. Enter your Admin ID to decrypt and view.
+              This section lists only verified admins, with their sensitive details (including national ID) hidden until you click on them. Enter your Admin ID to decrypt and view.
             </p>
             {unlockError && <div className="form-error" style={{ marginBottom: 14 }}>{unlockError}</div>}
             <input
@@ -253,25 +298,83 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
         ) : (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <span className="badge badge-verified">🔓 Unlocked — handle with care</span>
-              <button className="btn-ghost-small" onClick={() => { setPersonalInfo(null); setAdminCode('') }}>🔒 Lock again</button>
+              <span className="badge badge-verified">🔓 Unlocked — verified admins only</span>
+              <button className="btn-ghost-small" onClick={() => { setPersonalInfo(null); setAdminCode(''); setExpandedAdminId(null) }}>🔒 Lock again</button>
             </div>
-            <div className="admin-list">
-              {personalInfo.map((p) => (
-                <div className="admin-row" key={p.id}>
-                  <div style={{ width: '100%' }}>
-                    <strong>@{p.username || 'no-username'}</strong>
-                    <span className="muted" style={{ marginLeft: 8, textTransform: 'capitalize' }}>({p.role})</span>
-                    <div className="muted" style={{ fontSize: 13, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-                      <span>👤 {p.name || '—'}</span>
-                      <span>✉️ {p.email || '—'}</span>
-                      <span>📞 {p.phone || '—'}</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text)' }}>🪪 ID: {p.national_id || 'Not provided'}</span>
+            {personalInfo.length === 0 ? (
+              <p className="muted">No verified admins yet.</p>
+            ) : (
+              <div className="admin-list">
+                {personalInfo.map((p) => {
+                  const isOpen = expandedAdminId === p.id
+                  return (
+                    <div key={p.id} className="admin-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                      <button
+                        onClick={() => setExpandedAdminId(isOpen ? null : p.id)}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}
+                      >
+                        <span>
+                          <strong>@{p.username || 'no-username'}</strong>
+                          <span className="badge badge-verified" style={{ marginLeft: 8, textTransform: 'capitalize' }}>{p.role}</span>
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{isOpen ? '▲ Hide details' : '▼ View details'}</span>
+                      </button>
+
+                      {isOpen && (
+                        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                          {editingAdminId === p.id ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              <div>
+                                <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Full name</label>
+                                <input value={editForm.name} onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Email</label>
+                                <input value={editForm.email} onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Phone</label>
+                                <input value={editForm.phone} onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>National ID</label>
+                                <input value={editForm.national_id} onChange={(e) => setEditForm(f => ({ ...f, national_id: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
+                              </div>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="btn-small" onClick={() => saveAdminEdit(p.id)} disabled={savingEdit}>{savingEdit ? 'Saving…' : 'Save changes'}</button>
+                                <button className="btn-ghost-small" onClick={() => setEditingAdminId(null)}>Cancel</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="muted" style={{ fontSize: 13, display: 'flex', flexWrap: 'wrap', gap: '6px 20px', marginBottom: 12 }}>
+                                <span>👤 {p.name || '—'}</span>
+                                <span>✉️ {p.email || '—'}</span>
+                                <span>📞 {p.phone || '—'}</span>
+                                <span style={{ fontWeight: 600, color: 'var(--text)' }}>🪪 ID: {p.national_id || 'Not provided'}</span>
+                                <span>📅 Admin since {new Date(p.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                              </div>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="btn-ghost-small" onClick={() => startEdit(p)}>✏️ Edit info</button>
+                                {p.role === 'admin' && isSuperadmin && (
+                                  <button className="btn-ghost-small" style={{ color: '#E24B4A' }} onClick={async () => {
+                                    if (!confirm(`Remove admin rights from @${p.username}? This immediately revokes their access.`)) return
+                                    const { error } = await supabase.rpc('demote_admin', { p_target: p.id })
+                                    if (error) { alert('Error: ' + error.message); return }
+                                    unlockPersonalInfo()
+                                    loadAll()
+                                  }}>🗑 Remove admin</button>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )
       )}

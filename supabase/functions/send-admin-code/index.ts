@@ -2,14 +2,25 @@
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://bizcheck-kenya.vercel.app'
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
 Deno.serve(async (req) => {
+  // Handle the browser's CORS preflight request
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   try {
     const { email, name, code } = await req.json()
 
     if (!email || !code) {
       return new Response(JSON.stringify({ error: 'Missing email or code' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
@@ -45,18 +56,18 @@ Deno.serve(async (req) => {
     if (!response.ok) {
       return new Response(JSON.stringify({ error: 'Failed to send email', detail: result }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
 })
