@@ -507,14 +507,17 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {threadMessages.map((m) => {
-                    const isMeAdmin = m.sender_id !== m.thread_user_id
+                    const isMeAdmin = !m.is_bot && m.sender_id !== m.thread_user_id
+                    const isBot = m.is_bot
                     return (
                       <div key={m.id} style={{ display: 'flex', justifyContent: isMeAdmin ? 'flex-end' : 'flex-start' }}>
                         <div style={{
                           maxWidth: '70%', padding: '10px 14px', borderRadius: 14,
-                          background: isMeAdmin ? '#1D9E75' : 'var(--hover-bg)',
+                          background: isMeAdmin ? '#1D9E75' : isBot ? '#E0F7FA' : 'var(--hover-bg)',
                           color: isMeAdmin ? '#fff' : 'var(--text)', fontSize: 14,
+                          border: isBot ? '1px solid #80DEEA' : 'none',
                         }}>
+                          {isBot && <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 2, color: '#0D6E82' }}>🤖 Bot auto-reply</div>}
                           {m.message}
                           <div style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>
                             {new Date(m.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}
