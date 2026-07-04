@@ -161,8 +161,8 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
                 </div>
                 {isSuperadmin && u.id !== currentUser.id && (
                   <div className="admin-actions">
-                    {u.role === 'user' && !app && <button className="btn-ghost-small" onClick={() => inviteUser(u)}>Send admin application</button>}
-                    {u.role === 'user' && app && app.status === 'rejected' && <button className="btn-ghost-small" onClick={() => inviteUser(u)}>Re-invite</button>}
+                    {!['admin', 'superadmin'].includes(u.role) && !app && <button className="btn-ghost-small" onClick={() => inviteUser(u)}>Send admin application</button>}
+                    {!['admin', 'superadmin'].includes(u.role) && app && app.status === 'rejected' && <button className="btn-ghost-small" onClick={() => inviteUser(u)}>Re-invite</button>}
                     {u.role === 'admin' && <button className="btn-ghost-small" style={{ color: '#E24B4A' }} onClick={() => demoteUser(u)}>Remove admin</button>}
                   </div>
                 )}
