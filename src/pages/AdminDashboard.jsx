@@ -5,7 +5,11 @@ const FLAG_THRESHOLD = 6
 const SCAM_THRESHOLD = 10
 
 export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
-  const [mainTab, setMainTab] = useState('businesses') // businesses | reports | verification
+  const [mainTab, setMainTab] = useState('businesses') // businesses | reports | verification | chat
+  const [chatThreads, setChatThreads] = useState([])
+  const [activeThreadUserId, setActiveThreadUserId] = useState(null)
+  const [threadMessages, setThreadMessages] = useState([])
+  const [chatText, setChatText] = useState('')
   const [bizSubTab, setBizSubTab] = useState('verified') // verified | flagged | scam
   const [reportSubTab, setReportSubTab] = useState('pending') // pending | reported | log
 
@@ -17,6 +21,21 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   const [currentAdminId, setCurrentAdminId] = useState(null)
 
   useEffect(() => { checkAdmin() }, [])
+
+  // Live updates for support chat — new messages appear instantly
+  useEffect(() => {
+    if (!currentAdminId) return
+    const channel = supabase
+      .channel('admin-support-chat')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'support_messages' }, (payload) => {
+        loadChatThreads()
+        if (payload.new.thread_user_id === activeThreadUserId) {
+          setThreadMessages((prev) => [...prev, payload.new])
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [currentAdminId, activeThreadUserId])
 
   async function checkAdmin() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -38,7 +57,64 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     setBusinesses(bizRes.data || [])
     setSubmissions(subRes.data || [])
     setReports(repRes.data || [])
+    await loadChatThreads()
     setLoading(false)
+  }
+
+  // ── SUPPORT CHAT ──
+  async function loadChatThreads() {
+    const { data } = await supabase
+      .from('support_messages')
+      .select('*, profiles!support_messages_thread_user_id_fkey(name, username, email)')
+      .order('created_at', { ascending: false })
+
+    // Group into threads by thread_user_id, keep latest message + unread count
+    const grouped = {}
+    ;(data || []).forEach((m) => {
+      if (!grouped[m.thread_user_id]) {
+        grouped[m.thread_user_id] = {
+          userId: m.thread_user_id,
+          profile: m.profiles,
+          lastMessage: m,
+          unreadCount: 0,
+        }
+      }
+      if (!m.is_read && m.sender_id === m.thread_user_id) {
+        grouped[m.thread_user_id].unreadCount++
+      }
+    })
+    setChatThreads(Object.values(grouped).sort((a, b) => new Date(b.lastMessage.created_at) - new Date(a.lastMessage.created_at)))
+  }
+
+  async function openThread(userId) {
+    setActiveThreadUserId(userId)
+    const { data } = await supabase
+      .from('support_messages')
+      .select('*')
+      .eq('thread_user_id', userId)
+      .order('created_at', { ascending: true })
+    setThreadMessages(data || [])
+
+    // Mark unread messages as read
+    await supabase.from('support_messages')
+      .update({ is_read: true })
+      .eq('thread_user_id', userId)
+      .eq('sender_id', userId)
+      .eq('is_read', false)
+    loadChatThreads()
+  }
+
+  async function sendChatReply() {
+    if (!chatText.trim() || !activeThreadUserId) return
+    const { error } = await supabase.from('support_messages').insert({
+      sender_id: currentAdminId,
+      thread_user_id: activeThreadUserId,
+      message: chatText.trim(),
+      is_read: true,
+    })
+    if (error) { alert('Error: ' + error.message); return }
+    setChatText('')
+    openThread(activeThreadUserId)
   }
 
   // ── STATUS CHANGE (via safe RPC function with audit log) ──
@@ -181,6 +257,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
           ['businesses', 'All Businesses'],
           ['reports', 'Reports'],
           ['verification', `Business Verification${submissions.length ? ` (${submissions.length})` : ''}`],
+          ['chat', `Support Chat${chatThreads.reduce((s, t) => s + t.unreadCount, 0) ? ` (${chatThreads.reduce((s, t) => s + t.unreadCount, 0)})` : ''}`],
         ].map(([id, label]) => (
           <button
             key={id}
@@ -375,6 +452,96 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ══════════════ SUPPORT CHAT ══════════════ */}
+      {mainTab === 'chat' && (
+        <div style={{ display: 'flex', gap: 16, height: 520 }}>
+          {/* THREAD LIST */}
+          <div style={{ width: 260, flexShrink: 0, border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '10px 14px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>
+              Conversations ({chatThreads.length})
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {chatThreads.length === 0 ? (
+                <p className="muted" style={{ padding: 14, fontSize: 13 }}>No support messages yet.</p>
+              ) : chatThreads.map((t) => (
+                <button
+                  key={t.userId}
+                  onClick={() => openThread(t.userId)}
+                  style={{
+                    width: '100%', textAlign: 'left', padding: '12px 14px', border: 'none',
+                    borderBottom: '1px solid var(--border)',
+                    background: activeThreadUserId === t.userId ? 'var(--hover-bg)' : 'transparent',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: 13 }}>{t.profile?.name || t.profile?.username || 'User'}</strong>
+                    {t.unreadCount > 0 && (
+                      <span style={{ background: '#E24B4A', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '1px 6px' }}>{t.unreadCount}</span>
+                    )}
+                  </div>
+                  <div className="muted" style={{ fontSize: 12, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {t.lastMessage.message}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ACTIVE THREAD */}
+          <div style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {!activeThreadUserId ? (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <p className="muted">Select a conversation to view messages.</p>
+              </div>
+            ) : (
+              <>
+                <div style={{ padding: '10px 16px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
+                  {chatThreads.find(t => t.userId === activeThreadUserId)?.profile?.name || 'User'}
+                  <button className="link-btn" style={{ display: 'inline', margin: 0, marginLeft: 10, fontSize: 12 }} onClick={() => onSelectUser?.(activeThreadUserId)}>
+                    View profile →
+                  </button>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {threadMessages.map((m) => {
+                    const isMeAdmin = m.sender_id !== m.thread_user_id
+                    return (
+                      <div key={m.id} style={{ display: 'flex', justifyContent: isMeAdmin ? 'flex-end' : 'flex-start' }}>
+                        <div style={{
+                          maxWidth: '70%', padding: '10px 14px', borderRadius: 14,
+                          background: isMeAdmin ? '#1D9E75' : 'var(--hover-bg)',
+                          color: isMeAdmin ? '#fff' : 'var(--text)', fontSize: 14,
+                        }}>
+                          {m.message}
+                          <div style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>
+                            {new Date(m.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{ padding: 12, borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+                  <input
+                    value={chatText}
+                    onChange={(e) => setChatText(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && sendChatReply()}
+                    placeholder="Reply…"
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface)', color: 'var(--text)' }}
+                  />
+                  <button
+                    onClick={sendChatReply}
+                    style={{ padding: '10px 20px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Send
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

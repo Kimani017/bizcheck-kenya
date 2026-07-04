@@ -322,13 +322,14 @@ function App() {
         {page === 'submit' && <SubmitBusiness onDone={() => navigate('directory')} />}
         {page === 'admin' && <AdminDashboard onSelectBusiness={openBusiness} onSelectUser={openUserProfile} />}
         {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} />}
-        {page === 'support' && <Support onBack={goBack} />}
+        {page === 'support' && <Support onBack={goBack} currentUser={user} />}
         {page === 'bizProfile' && selectedBusiness && (
           <BusinessPublicProfile
             business={selectedBusiness}
             onBack={goBack}
             onReport={goToReport}
             currentUser={user}
+            isAdmin={isAdmin}
           />
         )}
         {page === 'bizDashboard' && selectedBusiness && (

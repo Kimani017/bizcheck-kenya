@@ -13,7 +13,7 @@ function StarDisplay({ rating, size = 16 }) {
   )
 }
 
-export default function BusinessPublicProfile({ business, onBack, onReport, currentUser }) {
+export default function BusinessPublicProfile({ business, onBack, onReport, currentUser, isAdmin }) {
   const [biz, setBiz] = useState(business)
   const [reviews, setReviews] = useState([])
   const [replies, setReplies] = useState({}) // { review_id: [replies] }
@@ -26,6 +26,7 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
   const [voteMsg, setVoteMsg] = useState('')
   const [showClaimForm, setShowClaimForm] = useState(false)
   const [claimSubmitted, setClaimSubmitted] = useState(false)
+  const [showAdminEdit, setShowAdminEdit] = useState(false)
 
   useEffect(() => {
     loadReviews()
@@ -161,11 +162,21 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
             🏢 Is this your business? Claim it
           </button>
         )}
+        {isAdmin && (
+          <button className="link-btn" style={{ margin: 0, color: '#0D6E82' }} onClick={() => setShowAdminEdit(!showAdminEdit)}>
+            ✏️ Edit business details (admin)
+          </button>
+        )}
       </div>
 
       {/* CLAIM FORM */}
       {showClaimForm && (
         <ClaimForm business={biz} currentUser={currentUser} onSubmitted={() => { setClaimSubmitted(true); setShowClaimForm(false) }} />
+      )}
+
+      {/* ADMIN EDIT FORM — bypasses the owner lock on name/category/location */}
+      {isAdmin && showAdminEdit && (
+        <AdminEditForm business={biz} onSaved={(updated) => { setBiz(updated); setShowAdminEdit(false) }} />
       )}
 
       {/* WRITE A REVIEW */}
@@ -367,6 +378,102 @@ function ClaimForm({ business, currentUser, onSubmitted }) {
       </div>
       <button className="btn-primary" style={{ width: 'auto', padding: '10px 24px' }} onClick={submit} disabled={submitting}>
         {submitting ? 'Submitting…' : 'Submit claim request'}
+      </button>
+    </div>
+  )
+}
+
+// ── ADMIN EDIT FORM — admin can edit ALL fields including locked ones (name, category, location) ──
+function AdminEditForm({ business, onSaved }) {
+  const CATEGORIES = ['Electronics', 'Fashion', 'Food', 'Phones', 'Home', 'Beauty', 'Other']
+  const [form, setForm] = useState({
+    name: business.name || '',
+    category: business.category || 'Other',
+    location: business.location || '',
+    description: business.description || '',
+    phone: business.phone || '',
+    mpesa_till: business.mpesa_till || '',
+    fb_handle: business.fb_handle || '',
+    tiktok_handle: business.tiktok_handle || '',
+    instagram_handle: business.instagram_handle || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  function update(field, value) { setForm(f => ({ ...f, [field]: value })) }
+
+  async function save() {
+    if (!form.name.trim()) { setError('Business name cannot be empty.'); return }
+    setSaving(true)
+    setError('')
+    const { data, error: updateError } = await supabase
+      .from('businesses')
+      .update(form)
+      .eq('id', business.id)
+      .select()
+      .single()
+    setSaving(false)
+    if (updateError) { setError('Error saving: ' + updateError.message); return }
+    onSaved(data)
+  }
+
+  const inp = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface)', color: 'var(--text)' }
+  const lbl = { fontSize: 12, color: '#0D6E82', fontWeight: 700, marginBottom: 5, display: 'block', textTransform: 'uppercase', letterSpacing: '0.4px' }
+
+  return (
+    <div style={{ background: '#E0F7FA', border: '1.5px solid #80DEEA', borderRadius: 14, padding: 20, marginBottom: 20 }}>
+      <h3 style={{ marginBottom: 4, color: '#0D6E82' }}>Admin edit</h3>
+      <p className="muted" style={{ marginBottom: 16, fontSize: 13 }}>As an admin, you can edit any field including name, category, and location — which are locked for the owner.</p>
+
+      {error && <div className="form-error" style={{ marginBottom: 14 }}>{error}</div>}
+
+      <div className="form-row" style={{ marginBottom: 12 }}>
+        <div>
+          <label style={lbl}>Business name</label>
+          <input style={inp} value={form.name} onChange={(e) => update('name', e.target.value)} />
+        </div>
+        <div>
+          <label style={lbl}>Category</label>
+          <select style={inp} value={form.category} onChange={(e) => update('category', e.target.value)}>
+            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <label style={lbl}>Location</label>
+        <input style={inp} value={form.location} onChange={(e) => update('location', e.target.value)} />
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <label style={lbl}>Description</label>
+        <textarea style={{ ...inp, resize: 'vertical' }} rows={3} value={form.description} onChange={(e) => update('description', e.target.value)} />
+      </div>
+
+      <div className="form-row" style={{ marginBottom: 12 }}>
+        <div>
+          <label style={lbl}>Phone</label>
+          <input style={inp} value={form.phone} onChange={(e) => update('phone', e.target.value)} />
+        </div>
+        <div>
+          <label style={lbl}>M-Pesa till</label>
+          <input style={inp} value={form.mpesa_till} onChange={(e) => update('mpesa_till', e.target.value)} />
+        </div>
+      </div>
+
+      <div className="form-row" style={{ marginBottom: 18 }}>
+        <div>
+          <label style={lbl}>Facebook</label>
+          <input style={inp} value={form.fb_handle} onChange={(e) => update('fb_handle', e.target.value)} />
+        </div>
+        <div>
+          <label style={lbl}>TikTok</label>
+          <input style={inp} value={form.tiktok_handle} onChange={(e) => update('tiktok_handle', e.target.value)} />
+        </div>
+      </div>
+
+      <button className="btn-primary" style={{ width: 'auto', padding: '10px 24px', background: '#17A2B8' }} onClick={save} disabled={saving}>
+        {saving ? 'Saving…' : 'Save changes'}
       </button>
     </div>
   )
