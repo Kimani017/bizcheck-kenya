@@ -35,6 +35,21 @@ export default function Pleads({ onBack, onSelectBusiness }) {
     loadAll()
   }
 
+  // Auto-lock if the browser tab/window loses focus, or when leaving this page
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.hidden) {
+        setUnlocked(false)
+        setEnteredCode('')
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      setUnlocked(false)
+    }
+  }, [])
+
   if (!unlocked) {
     return (
       <div className="section" style={{ maxWidth: 480 }}>
@@ -50,7 +65,8 @@ export default function Pleads({ onBack, onSelectBusiness }) {
             value={enteredCode}
             onChange={(e) => setEnteredCode(e.target.value.toUpperCase())}
             onKeyDown={(e) => e.key === 'Enter' && tryUnlock()}
-            placeholder="ADM-XXXXXXXX"
+            type="password"
+              placeholder="ADM-XXXXXXXX"
             style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 15, textAlign: 'center', letterSpacing: 2, fontFamily: 'monospace', background: 'var(--surface)', color: 'var(--text)', marginBottom: 12 }}
           />
           <button className="btn-primary" onClick={tryUnlock} disabled={unlocking}>

@@ -14,6 +14,8 @@ import SetUsername from './pages/SetUsername'
 import ResetPassword from './pages/ResetPassword'
 import AdminProfiles from './pages/AdminProfiles'
 import Pleads from './pages/Pleads'
+import LoginOtp from './pages/LoginOtp'
+import AdminIdCheck from './pages/AdminIdCheck'
 import AdminApplicationForm from './pages/AdminApplicationForm'
 import EnterAdminCode from './pages/EnterAdminCode'
 import Settings from './pages/Settings'
@@ -35,6 +37,8 @@ function App() {
   const [needsUsername, setNeedsUsername] = useState(false)
   const [recoveringPassword, setRecoveringPassword] = useState(false)
   const [pendingApplication, setPendingApplication] = useState(null)
+  const [needsLoginOtp, setNeedsLoginOtp] = useState(false)
+  const [needsAdminIdCheck, setNeedsAdminIdCheck] = useState(false)
   const [restoring, setRestoring] = useState(true)
   const [theme, setTheme] = useState(() => localStorage.getItem('bizcheck_theme') || 'light')
   const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768)
@@ -129,21 +133,34 @@ function App() {
         setUser(null)
         setIsAdmin(false)
         setNeedsUsername(false)
+        setNeedsLoginOtp(false)
+        setNeedsAdminIdCheck(false)
         sessionStorage.removeItem(NAV_KEY)
+        sessionStorage.removeItem('bizcheck_admin_verified')
         return
       }
       if (event === 'SIGNED_IN') {
         setUser(session?.user || null)
         if (session?.user) {
-          checkAdmin(session.user.id)
           checkUsername(session.user.id)
-          // Always land on home after login — clear any 'auth' page state
-          // (covers both email login and Google OAuth redirect back to #auth)
           setSelectedBusiness(null)
           setSelectedUserId(null)
           setPage('home')
           sessionStorage.setItem(NAV_KEY, JSON.stringify({ page: 'home' }))
           window.history.replaceState({ page: 'home' }, '', '#home')
+
+          // Check if this account is admin/superadmin — if so, require
+          // email OTP + personal Admin ID before granting access, unless
+          // this browser session already completed that check.
+          supabase.from('profiles').select('role').eq('id', session.user.id).single().then(({ data: profile }) => {
+            const admin = !!profile && ['admin', 'superadmin'].includes(profile.role)
+            setIsAdmin(admin)
+            setIsSuperadmin(profile?.role === 'superadmin')
+            const alreadyVerified = sessionStorage.getItem('bizcheck_admin_verified') === 'true'
+            if (admin && !alreadyVerified) {
+              setNeedsLoginOtp(true)
+            }
+          })
         }
         return
       }
@@ -266,6 +283,17 @@ function App() {
 
   if (recoveringPassword) {
     return <ResetPassword onDone={() => { setRecoveringPassword(false); navigate('home') }} />
+  }
+
+  if (user && needsLoginOtp) {
+    return <LoginOtp currentUser={user} onVerified={() => { setNeedsLoginOtp(false); setNeedsAdminIdCheck(true) }} />
+  }
+
+  if (user && needsAdminIdCheck) {
+    return <AdminIdCheck onVerified={() => {
+      setNeedsAdminIdCheck(false)
+      sessionStorage.setItem('bizcheck_admin_verified', 'true')
+    }} />
   }
 
   if (user && needsUsername) {

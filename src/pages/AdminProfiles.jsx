@@ -21,6 +21,31 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
 
   useEffect(() => { loadAll() }, [])
 
+  // Auto-lock Personal Info the moment they switch to another tab within this page
+  useEffect(() => {
+    if (tab !== 'personal' && personalInfo !== null) {
+      setPersonalInfo(null)
+      setAdminCode('')
+      setExpandedAdminId(null)
+    }
+  }, [tab])
+
+  // Auto-lock if the browser tab/window loses focus or this component unmounts
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.hidden) {
+        setPersonalInfo(null)
+        setAdminCode('')
+        setExpandedAdminId(null)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      setPersonalInfo(null)
+    }
+  }, [])
+
   async function loadAll() {
     setLoading(true)
     const [bizRes, userRes, meRes, appRes] = await Promise.all([
@@ -291,13 +316,17 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
             <div style={{ fontSize: 44, marginBottom: 12 }}>🔒</div>
             <h3 style={{ marginBottom: 6, color: 'var(--text-strong)' }}>Encrypted admin records</h3>
             <p className="muted" style={{ fontSize: 13, marginBottom: 20 }}>
-              This section lists only verified admins, with their sensitive details (including national ID) hidden until you click on them. Enter your Admin ID to decrypt and view.
+              {isSuperadmin
+                ? "As superadmin, you'll see every verified admin's sensitive details (including national ID) hidden until you click on them."
+                : "You'll see only your own personal details here. Only the superadmin can view other admins' information."}
+              {' '}Enter your Admin ID to decrypt and view.
             </p>
             {unlockError && <div className="form-error" style={{ marginBottom: 14 }}>{unlockError}</div>}
             <input
               value={adminCode}
               onChange={(e) => setAdminCode(e.target.value.toUpperCase())}
               onKeyDown={(e) => e.key === 'Enter' && unlockPersonalInfo()}
+              type="password"
               placeholder="ADM-XXXXXXXX"
               style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 15, textAlign: 'center', letterSpacing: 2, fontFamily: 'monospace', background: 'var(--surface)', color: 'var(--text)', marginBottom: 12 }}
             />
