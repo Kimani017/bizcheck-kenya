@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { BusinessCard } from './Home'
+import { SkeletonGrid } from './Skeleton'
 
 const CATEGORIES = ['All', 'Electronics', 'Fashion', 'Food', 'Phones', 'Home', 'Beauty', 'Other']
 
@@ -41,7 +42,7 @@ export default function Directory({ onSelectBusiness, goToSubmit }) {
         ))}
       </div>
       {loading ? (
-        <p className="muted">Loading…</p>
+        <SkeletonGrid count={6} />
       ) : businesses.length === 0 ? (
         <div className="empty-state"><p>No verified sellers in this category yet.</p></div>
       ) : (

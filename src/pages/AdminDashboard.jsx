@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import { SkeletonList } from './Skeleton'
 
 const FLAG_THRESHOLD = 6
 const SCAM_THRESHOLD = 10
@@ -208,7 +209,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
 
   if (isAdmin === null) return <div className="section"><p className="muted">Checking access…</p></div>
   if (isAdmin === false) return <div className="section"><p className="muted">You don't have admin access.</p></div>
-  if (loading) return <div className="section"><p className="muted">Loading dashboard…</p></div>
+  if (loading) return <div className="section" style={{ maxWidth: 920 }}><h2 style={{ marginBottom: 20 }}>Admin Dashboard</h2><SkeletonList count={6} /></div>
 
   // ── Derived data ──
   const verifiedBiz = businesses.filter(b => b.status === 'verified')

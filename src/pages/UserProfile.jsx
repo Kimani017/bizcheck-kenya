@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import { SkeletonProfile } from './Skeleton'
 
 const TABS = [
   { id: 'business', label: 'My Business', icon: '🏢' },
@@ -120,15 +121,7 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
     }
   }
 
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ width: 40, height: 40, border: '3px solid #E5E3DC', borderTop: '3px solid #1D9E75', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }}></div>
-        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading profile…</p>
-      </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-    </div>
-  )
+  if (loading) return <SkeletonProfile />
   if (!profile) return <div className="section"><p className="muted">Profile not found.</p></div>
 
   const joinDate = new Date(profile.created_at).toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })

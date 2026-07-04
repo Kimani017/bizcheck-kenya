@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import { SkeletonCard } from './Skeleton'
 
 export default function Home({ onSelectBusiness, goToReport }) {
   const [query, setQuery] = useState('')
@@ -7,6 +8,7 @@ export default function Home({ onSelectBusiness, goToReport }) {
   const [recent, setRecent] = useState([])
   const [flagged, setFlagged] = useState([])
   const [loading, setLoading] = useState(false)
+  const [listsLoading, setListsLoading] = useState(true)
   const [searchTimeout, setSearchTimeout] = useState(null)
 
   useEffect(() => {
@@ -14,6 +16,7 @@ export default function Home({ onSelectBusiness, goToReport }) {
   }, [])
 
   async function loadLists() {
+    setListsLoading(true)
     const { data: verifiedData } = await supabase
       .from('businesses')
       .select('*')
@@ -30,6 +33,7 @@ export default function Home({ onSelectBusiness, goToReport }) {
 
     setRecent(verifiedData || [])
     setFlagged(flaggedData || [])
+    setListsLoading(false)
   }
 
   async function handleSearch(overrideQuery) {
@@ -115,10 +119,16 @@ export default function Home({ onSelectBusiness, goToReport }) {
       <div className="section">
         <h2>Recently verified</h2>
         <div className="biz-grid">
-          {recent.map((b) => (
-            <BusinessCard key={b.id} business={b} onClick={() => onSelectBusiness(b)} />
-          ))}
-          {recent.length === 0 && <p className="muted">No verified businesses yet.</p>}
+          {listsLoading ? (
+            Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+          ) : (
+            <>
+              {recent.map((b) => (
+                <BusinessCard key={b.id} business={b} onClick={() => onSelectBusiness(b)} />
+              ))}
+              {recent.length === 0 && <p className="muted">No verified businesses yet.</p>}
+            </>
+          )}
         </div>
       </div>
 
@@ -126,10 +136,16 @@ export default function Home({ onSelectBusiness, goToReport }) {
       <div className="section">
         <h2>⚠ Recently reported</h2>
         <div className="biz-grid">
-          {flagged.map((b) => (
-            <BusinessCard key={b.id} business={b} onClick={() => onSelectBusiness(b)} />
-          ))}
-          {flagged.length === 0 && <p className="muted">No flagged businesses yet.</p>}
+          {listsLoading ? (
+            Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+          ) : (
+            <>
+              {flagged.map((b) => (
+                <BusinessCard key={b.id} business={b} onClick={() => onSelectBusiness(b)} />
+              ))}
+              {flagged.length === 0 && <p className="muted">No flagged businesses yet.</p>}
+            </>
+          )}
         </div>
       </div>
     </div>
