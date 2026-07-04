@@ -76,6 +76,8 @@ function App() {
 
   async function restoreNavState(navState) {
     if (!navState) return
+    // Never restore to the auth page — if we have a session we belong on home
+    if (navState.page === 'auth') { setPage('home'); return }
     isRestoringRef.current = true
     try {
       if (navState.authMode) setAuthMode(navState.authMode)
@@ -121,6 +123,13 @@ function App() {
         if (session?.user) {
           checkAdmin(session.user.id)
           checkUsername(session.user.id)
+          // Always land on home after login — clear any 'auth' page state
+          // (covers both email login and Google OAuth redirect back to #auth)
+          setSelectedBusiness(null)
+          setSelectedUserId(null)
+          setPage('home')
+          sessionStorage.setItem(NAV_KEY, JSON.stringify({ page: 'home' }))
+          window.history.replaceState({ page: 'home' }, '', '#home')
         }
         return
       }
