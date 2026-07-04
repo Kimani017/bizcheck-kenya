@@ -12,6 +12,7 @@ import SubmitBusiness from './pages/SubmitBusiness'
 import AdminDashboard from './pages/AdminDashboard'
 import SetUsername from './pages/SetUsername'
 import ResetPassword from './pages/ResetPassword'
+import AdminProfiles from './pages/AdminProfiles'
 import Settings from './pages/Settings'
 import Support from './pages/Support'
 import './App.css'
@@ -290,7 +291,9 @@ function App() {
             <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Trusted Sellers</button>
             <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>Report a Scammer</button>
             {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
-            <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>
+            {isAdmin
+              ? <button className={page === 'adminProfiles' ? 'active' : ''} onClick={() => navigate('adminProfiles')}>Profiles</button>
+              : <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>}
           </div>
 
           <div className="nav-links nav-links-right">
@@ -326,7 +329,9 @@ function App() {
               <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Trusted Sellers</button>
               <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>Report a Scammer</button>
               {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
-              <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>
+              {isAdmin
+              ? <button className={page === 'adminProfiles' ? 'active' : ''} onClick={() => navigate('adminProfiles')}>Profiles</button>
+              : <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>}
               <div className="mobile-menu-divider" />
               <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
               <button className={page === 'support' ? 'active' : ''} onClick={() => navigate('support')}>Support</button>
@@ -342,6 +347,7 @@ function App() {
         {page === 'report' && <ReportForm onDone={() => navigate('home')} prefill={reportPrefill} />}
         {page === 'submit' && <SubmitBusiness onDone={() => navigate('directory')} />}
         {page === 'admin' && <AdminDashboard onSelectBusiness={openBusiness} onSelectUser={openUserProfile} />}
+        {page === 'adminProfiles' && <AdminProfiles onSelectBusiness={openBusiness} onSelectUser={openUserProfile} currentUser={user} />}
         {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} />}
         {page === 'support' && <Support onBack={goBack} currentUser={user} />}
         {page === 'bizProfile' && selectedBusiness && (
