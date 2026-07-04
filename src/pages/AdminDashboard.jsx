@@ -19,6 +19,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(null)
+  const [isSuperadmin, setIsSuperadmin] = useState(false)
   const [currentAdminId, setCurrentAdminId] = useState(null)
 
   useEffect(() => { checkAdmin() }, [])
@@ -45,7 +46,20 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     const admin = profile && ['admin', 'superadmin'].includes(profile.role)
     setIsAdmin(admin)
+    setIsSuperadmin(profile?.role === 'superadmin')
     if (admin) loadAll()
+  }
+
+  // Banning requires the superadmin's secret code unless you ARE the superadmin
+  async function banBusiness(businessId) {
+    let code = null
+    if (!isSuperadmin) {
+      code = prompt('Banning requires authorization. Enter the ban code from the superadmin:')
+      if (code === null) return
+    }
+    const { error } = await supabase.rpc('ban_business_with_code', { p_business_id: businessId, p_code: code })
+    if (error) { alert('Error: ' + error.message); return }
+    loadAll()
   }
 
   async function loadAll() {
@@ -135,7 +149,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
       const { error } = await supabase.from('businesses').update({
         category: sub.category, description: sub.description, phone: sub.phone,
         mpesa_till: sub.mpesa_till, fb_handle: sub.fb_handle, tiktok_handle: sub.tiktok_handle,
-        instagram_handle: sub.instagram_handle, owner_id: sub.submitter_id, status: 'verified',
+        instagram_handle: sub.instagram_handle, owner_id: sub.submitter_id, status: 'verified', admin_reviewed: true,
       }).eq('id', existing.id)
       if (error) { alert('Error: ' + error.message); return }
     } else {
@@ -143,7 +157,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         name: sub.name, category: sub.category, description: sub.description,
         phone: sub.phone, mpesa_till: sub.mpesa_till, fb_handle: sub.fb_handle,
         tiktok_handle: sub.tiktok_handle, instagram_handle: sub.instagram_handle,
-        location: sub.location, owner_id: sub.submitter_id, status: 'verified',
+        location: sub.location, owner_id: sub.submitter_id, status: 'verified', admin_reviewed: true,
       })
       if (error) { alert('Error: ' + error.message); return }
     }
@@ -292,7 +306,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {(bizSubTab === 'verified' ? verifiedBiz : bizSubTab === 'flagged' ? flaggedBiz : scamBiz).map((b) => (
-              <BusinessAdminRow key={b.id} business={b} onSetStatus={setBusinessStatus} thresholds={{ FLAG_THRESHOLD, SCAM_THRESHOLD }} onSelectBusiness={onSelectBusiness} onSelectUser={onSelectUser} />
+              <BusinessAdminRow key={b.id} business={b} onSetStatus={setBusinessStatus} onBan={banBusiness} thresholds={{ FLAG_THRESHOLD, SCAM_THRESHOLD }} onSelectBusiness={onSelectBusiness} onSelectUser={onSelectUser} />
             ))}
             {(bizSubTab === 'verified' ? verifiedBiz : bizSubTab === 'flagged' ? flaggedBiz : scamBiz).length === 0 && (
               <p className="muted">No businesses in this category.</p>
@@ -553,7 +567,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
 }
 
 // ── Business row in "All Businesses" tab ──
-function BusinessAdminRow({ business: b, onSetStatus, thresholds, onSelectBusiness, onSelectUser }) {
+function BusinessAdminRow({ business: b, onSetStatus, onBan, thresholds, onSelectBusiness, onSelectUser }) {
   const needsFlagReview = b.unique_reporter_count >= thresholds.FLAG_THRESHOLD && b.status === 'verified'
   const needsScamReview = b.unique_reporter_count >= thresholds.SCAM_THRESHOLD && b.status !== 'scam'
 
@@ -566,7 +580,13 @@ function BusinessAdminRow({ business: b, onSetStatus, thresholds, onSelectBusine
         >
           <strong style={{ color: '#1D9E75', textDecoration: 'underline' }}>{b.name}</strong>
         </button>
+        {b.admin_reviewed && (
+          <span title="Reviewed and verified by BizCheck admin" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: '50%', background: '#1877F2', marginLeft: 6, verticalAlign: 'middle' }}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </span>
+        )}
         <span className="muted"> — {b.category}</span>
+        <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--text-muted)' }}>👁 {b.view_count || 0} view{b.view_count === 1 ? '' : 's'}</span>
         {b.owner_id && (
           <button
             onClick={() => onSelectUser?.(b.owner_id)}
@@ -586,7 +606,7 @@ function BusinessAdminRow({ business: b, onSetStatus, thresholds, onSelectBusine
         {b.status !== 'verified' && <button className="btn-ghost-small" onClick={() => onSetStatus(b.id, 'verified')}>Verify</button>}
         {b.status !== 'flagged' && <button className="btn-ghost-small" onClick={() => onSetStatus(b.id, 'flagged')}>Flag</button>}
         {b.status !== 'scam' && <button className="btn-small" style={{ background: '#A32D2D' }} onClick={() => onSetStatus(b.id, 'scam')}>Mark scam</button>}
-        {b.status !== 'banned' && <button className="btn-ghost-small" onClick={() => onSetStatus(b.id, 'banned')}>Ban</button>}
+        {b.status !== 'banned' && <button className="btn-ghost-small" onClick={() => onBan(b.id)}>Ban</button>}
       </div>
     </div>
   )

@@ -69,6 +69,11 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
   const profileViews = views.filter(v => v.view_type === 'profile_view').length
   const trustColor = biz.trust_score > 70 ? '#1D9E75' : biz.trust_score > 40 ? '#EF9F27' : '#E24B4A'
 
+  // If this business has been banned, show a plead screen instead of the normal dashboard
+  if (biz.status === 'banned') {
+    return <BannedBusinessScreen business={biz} currentUser={currentUser} onBack={onBack} />
+  }
+
   return (
     <div className="section" style={{ maxWidth: 680 }}>
       <button className="link-btn" onClick={onBack}>← Back</button>
@@ -299,6 +304,89 @@ function ReviewWithThread({ review, existingReplies, currentUser, businessId, on
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Shown to the owner instead of the dashboard when their business is banned ──
+function BannedBusinessScreen({ business, currentUser, onBack }) {
+  const [message, setMessage] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [existingRequest, setExistingRequest] = useState(null)
+  const [checked, setChecked] = useState(false)
+
+  useEffect(() => { checkExisting() }, [])
+
+  async function checkExisting() {
+    const { data } = await supabase
+      .from('unban_requests')
+      .select('*')
+      .eq('business_id', business.id)
+      .eq('requested_by', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+    setExistingRequest(data || null)
+    setChecked(true)
+  }
+
+  async function submitPlea() {
+    if (!message.trim()) { alert('Please explain why this business should be unbanned.'); return }
+    setSubmitting(true)
+    const { error } = await supabase.from('unban_requests').insert({
+      business_id: business.id,
+      requested_by: currentUser.id,
+      message: message.trim(),
+    })
+    setSubmitting(false)
+    if (error) { alert('Error submitting: ' + error.message); return }
+    checkExisting()
+  }
+
+  return (
+    <div className="section" style={{ maxWidth: 560 }}>
+      <button className="link-btn" onClick={onBack}>← Back</button>
+
+      <div style={{ background: '#FCEBEB', border: '1px solid #F7C1C1', borderRadius: 16, padding: 28, textAlign: 'center' }}>
+        <div style={{ fontSize: 44, marginBottom: 12 }}>🚫</div>
+        <h2 style={{ fontSize: 20, marginBottom: 6, color: '#A32D2D' }}>{business.name} has been banned</h2>
+        <p className="muted" style={{ fontSize: 14, marginBottom: 20 }}>
+          This business was banned from BizCheck Kenya for violating our trust and safety guidelines. It is no longer visible to the public.
+        </p>
+
+        {!checked ? (
+          <p className="muted">Loading…</p>
+        ) : existingRequest ? (
+          <div style={{ background: '#fff', borderRadius: 12, padding: '16px 20px', textAlign: 'left' }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>
+              Your plea: <span className={`badge ${existingRequest.status === 'approved' ? 'badge-verified' : existingRequest.status === 'rejected' ? 'badge-danger' : 'badge-pending'}`}>{existingRequest.status}</span>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>"{existingRequest.message}"</p>
+            {existingRequest.status === 'rejected' && existingRequest.review_note && (
+              <p style={{ fontSize: 13, color: '#A32D2D' }}>Admin note: {existingRequest.review_note}</p>
+            )}
+            {existingRequest.status === 'pending' && (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Your plea is under review by our team.</p>
+            )}
+          </div>
+        ) : (
+          <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', textAlign: 'left' }}>
+            <label style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500, marginBottom: 6, display: 'block' }}>
+              Explain why this business should be unbanned
+            </label>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={4}
+              placeholder="Tell our team what happened and why you believe this ban should be reversed..."
+              style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, fontFamily: 'inherit', marginBottom: 12, background: 'var(--surface)', color: 'var(--text)' }}
+            />
+            <button className="btn-primary" onClick={submitPlea} disabled={submitting}>
+              {submitting ? 'Submitting…' : 'Submit plea to be unbanned'}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

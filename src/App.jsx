@@ -13,6 +13,7 @@ import AdminDashboard from './pages/AdminDashboard'
 import SetUsername from './pages/SetUsername'
 import ResetPassword from './pages/ResetPassword'
 import AdminProfiles from './pages/AdminProfiles'
+import Pleads from './pages/Pleads'
 import AdminApplicationForm from './pages/AdminApplicationForm'
 import EnterAdminCode from './pages/EnterAdminCode'
 import Settings from './pages/Settings'
@@ -29,6 +30,7 @@ function App() {
   const [authMode, setAuthMode] = useState('login')
   const [user, setUser] = useState(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isSuperadmin, setIsSuperadmin] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [needsUsername, setNeedsUsername] = useState(false)
   const [recoveringPassword, setRecoveringPassword] = useState(false)
@@ -208,6 +210,7 @@ function App() {
   async function checkAdmin(userId) {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single()
     setIsAdmin(!!profile && ['admin', 'superadmin'].includes(profile.role))
+    setIsSuperadmin(!!profile && profile.role === 'superadmin')
   }
 
   function openBusiness(business) {
@@ -323,7 +326,9 @@ function App() {
 
           <div className="nav-links nav-links-right">
             <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
-            <button className={page === 'support' ? 'active' : ''} onClick={() => navigate('support')}>Support</button>
+            {isSuperadmin
+              ? <button className={page === 'pleads' ? 'active' : ''} onClick={() => navigate('pleads')}>Pleads</button>
+              : <button className={page === 'support' ? 'active' : ''} onClick={() => navigate('support')}>Support</button>}
             <button onClick={handleLogout}>Log out</button>
           </div>
         </nav>
@@ -359,7 +364,9 @@ function App() {
               : <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>}
               <div className="mobile-menu-divider" />
               <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
-              <button className={page === 'support' ? 'active' : ''} onClick={() => navigate('support')}>Support</button>
+              {isSuperadmin
+              ? <button className={page === 'pleads' ? 'active' : ''} onClick={() => navigate('pleads')}>Pleads</button>
+              : <button className={page === 'support' ? 'active' : ''} onClick={() => navigate('support')}>Support</button>}
               <button onClick={handleLogout} style={{ color: '#E24B4A' }}>Log out</button>
             </div>
           </div>
@@ -375,6 +382,7 @@ function App() {
         {page === 'adminProfiles' && <AdminProfiles onSelectBusiness={openBusiness} onSelectUser={openUserProfile} currentUser={user} />}
         {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} />}
         {page === 'support' && <Support onBack={goBack} currentUser={user} />}
+        {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
         {page === 'bizProfile' && selectedBusiness && (
           <BusinessPublicProfile
             business={selectedBusiness}
