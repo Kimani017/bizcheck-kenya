@@ -10,7 +10,57 @@ export default function Pleads({ onBack, onSelectBusiness }) {
   const [showCode, setShowCode] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
 
-  useEffect(() => { loadAll() }, [])
+  // Lock screen — only the person who knows the superadmin's own Admin ID can enter
+  const [unlocked, setUnlocked] = useState(false)
+  const [enteredCode, setEnteredCode] = useState('')
+  const [unlocking, setUnlocking] = useState(false)
+  const [unlockError, setUnlockError] = useState('')
+
+  async function tryUnlock() {
+    if (!enteredCode.trim()) { setUnlockError('Please enter your Admin ID.'); return }
+    setUnlocking(true)
+    setUnlockError('')
+
+    // Server-side verification with brute-force lockout protection
+    const { error } = await supabase.rpc('verify_own_admin_code', { p_code: enteredCode.trim().toUpperCase() })
+
+    setUnlocking(false)
+
+    if (error) {
+      setUnlockError(error.message.includes('Too many') ? '⏱ ' + error.message : '✗ Invalid Admin ID. Access denied.')
+      return
+    }
+
+    setUnlocked(true)
+    loadAll()
+  }
+
+  if (!unlocked) {
+    return (
+      <div className="section" style={{ maxWidth: 480 }}>
+        <button className="link-btn" onClick={onBack}>← Back</button>
+        <div style={{ maxWidth: 400, margin: '30px auto', textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 32 }}>
+          <div style={{ fontSize: 44, marginBottom: 12 }}>🔒</div>
+          <h3 style={{ marginBottom: 6, color: 'var(--text-strong)' }}>Superadmin access only</h3>
+          <p className="muted" style={{ fontSize: 13, marginBottom: 20 }}>
+            Enter your personal Admin ID to unlock the Pleads section. Only the true superadmin knows this code.
+          </p>
+          {unlockError && <div className="form-error" style={{ marginBottom: 14 }}>{unlockError}</div>}
+          <input
+            value={enteredCode}
+            onChange={(e) => setEnteredCode(e.target.value.toUpperCase())}
+            onKeyDown={(e) => e.key === 'Enter' && tryUnlock()}
+            placeholder="ADM-XXXXXXXX"
+            style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 15, textAlign: 'center', letterSpacing: 2, fontFamily: 'monospace', background: 'var(--surface)', color: 'var(--text)', marginBottom: 12 }}
+          />
+          <button className="btn-primary" onClick={tryUnlock} disabled={unlocking}>
+            {unlocking ? 'Verifying…' : '🔓 Unlock Pleads'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
 
   async function loadAll() {
     setLoading(true)
@@ -57,8 +107,13 @@ export default function Pleads({ onBack, onSelectBusiness }) {
   return (
     <div className="section" style={{ maxWidth: 820 }}>
       <button className="link-btn" onClick={onBack}>← Back</button>
-      <h2 style={{ marginBottom: 6 }}>Pleads</h2>
-      <p className="muted" style={{ marginBottom: 20 }}>Businesses requesting to be unbanned, and the master ban authorization code for other admins.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h2 style={{ marginBottom: 6 }}>Pleads</h2>
+          <p className="muted" style={{ marginBottom: 20 }}>Businesses requesting to be unbanned, and the master ban authorization code for other admins.</p>
+        </div>
+        <button className="btn-ghost-small" onClick={() => { setUnlocked(false); setEnteredCode(''); }}>🔒 Lock Pleads</button>
+      </div>
 
       {/* BAN AUTHORIZATION CODE PANEL */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px', marginBottom: 24 }}>

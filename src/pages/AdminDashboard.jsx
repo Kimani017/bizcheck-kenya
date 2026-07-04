@@ -58,7 +58,10 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
       if (code === null) return
     }
     const { error } = await supabase.rpc('ban_business_with_code', { p_business_id: businessId, p_code: code })
-    if (error) { alert('Error: ' + error.message); return }
+    if (error) {
+      alert(error.message.includes('Too many') ? '⏱ ' + error.message : 'Error: ' + error.message)
+      return
+    }
     loadAll()
   }
 

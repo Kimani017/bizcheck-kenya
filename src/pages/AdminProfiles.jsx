@@ -43,7 +43,11 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
     const { data, error } = await supabase.rpc('get_personal_info', { p_code: adminCode.trim() })
     setUnlocking(false)
     if (error) {
-      setUnlockError(error.message.includes('Invalid') ? '✗ Invalid Admin ID. Access denied.' : 'Error: ' + error.message)
+      setUnlockError(
+        error.message.includes('Too many') ? '⏱ ' + error.message :
+        error.message.includes('Invalid') ? '✗ Invalid Admin ID. Access denied.' :
+        'Error: ' + error.message
+      )
       return
     }
     setPersonalInfo(data || [])
@@ -176,7 +180,13 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
                 <button onClick={() => onSelectBusiness(b)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
                   <strong style={{ color: '#1D9E75', textDecoration: 'underline' }}>{b.name}</strong>
                 </button>
+                {b.admin_reviewed && (
+                  <span title="Reviewed and verified by BizCheck admin" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: '50%', background: '#1877F2', marginLeft: 6, verticalAlign: 'middle' }}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </span>
+                )}
                 <span className={`badge ${b.status === 'verified' ? 'badge-verified' : b.status === 'scam' || b.status === 'flagged' ? 'badge-danger' : 'badge-pending'}`} style={{ marginLeft: 8 }}>{b.status}</span>
+                <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--text-muted)' }}>👁 {b.view_count || 0} view{b.view_count === 1 ? '' : 's'}</span>
                 <div className="muted" style={{ fontSize: 13, marginTop: 3 }}>
                   {b.category} · Joined {new Date(b.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}
                 </div>
