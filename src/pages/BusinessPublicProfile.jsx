@@ -110,7 +110,14 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
       {/* HEADER */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 style={{ fontSize: 24, marginBottom: 4, color: 'var(--text-strong)', fontWeight: 700 }}>{biz.name}</h2>
+          <h2 style={{ fontSize: 24, marginBottom: 4, color: 'var(--text-strong)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+            {biz.name}
+            {biz.admin_reviewed && (
+              <span title="Reviewed and verified by BizCheck admin" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: '#1877F2', flexShrink: 0 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </span>
+            )}
+          </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span className="badge badge-verified" style={{ fontSize: 12 }}>{biz.category}</span>
             {biz.location && <span className="muted">📍 {biz.location}</span>}
@@ -157,7 +164,7 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
       </div>
       <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
         <button className="link-btn report-link" style={{ margin: 0 }} onClick={() => onReport(biz)}>🚩 Report this seller</button>
-        {!biz.owner_id && !claimSubmitted && (
+        {!biz.owner_id && !claimSubmitted && !isAdmin && (
           <button className="link-btn" style={{ margin: 0, color: '#085041' }} onClick={() => setShowClaimForm(!showClaimForm)}>
             🏢 Is this your business? Claim it
           </button>

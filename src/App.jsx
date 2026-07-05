@@ -16,6 +16,7 @@ import AdminProfiles from './pages/AdminProfiles'
 import Pleads from './pages/Pleads'
 import LoginOtp from './pages/LoginOtp'
 import AdminIdCheck from './pages/AdminIdCheck'
+import Messages from './pages/Messages'
 import AdminApplicationForm from './pages/AdminApplicationForm'
 import EnterAdminCode from './pages/EnterAdminCode'
 import Settings from './pages/Settings'
@@ -39,6 +40,7 @@ function App() {
   const [pendingApplication, setPendingApplication] = useState(null)
   const [needsLoginOtp, setNeedsLoginOtp] = useState(false)
   const [needsAdminIdCheck, setNeedsAdminIdCheck] = useState(false)
+  const [messageTargetId, setMessageTargetId] = useState(null)
   const [restoring, setRestoring] = useState(true)
   const [theme, setTheme] = useState(() => localStorage.getItem('bizcheck_theme') || 'light')
   const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768)
@@ -247,6 +249,11 @@ function App() {
     navigate('userProfile', { userId: userId || user?.id })
   }
 
+  function openMessages(targetUserId = null) {
+    setMessageTargetId(targetUserId)
+    navigate('messages')
+  }
+
   function goToReport(business = null) {
     setReportPrefill(business)
     navigate('report')
@@ -350,6 +357,7 @@ function App() {
             {isAdmin
               ? <button className={page === 'adminProfiles' ? 'active' : ''} onClick={() => navigate('adminProfiles')}>Profiles</button>
               : <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>}
+            <button className={page === 'messages' ? 'active' : ''} onClick={() => openMessages()}>Messages</button>
           </div>
 
           <div className="nav-links nav-links-right">
@@ -390,6 +398,7 @@ function App() {
               {isAdmin
               ? <button className={page === 'adminProfiles' ? 'active' : ''} onClick={() => navigate('adminProfiles')}>Profiles</button>
               : <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>}
+            <button className={page === 'messages' ? 'active' : ''} onClick={() => openMessages()}>Messages</button>
               <div className="mobile-menu-divider" />
               <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
               {isSuperadmin
@@ -411,6 +420,7 @@ function App() {
         {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} />}
         {page === 'support' && <Support onBack={goBack} currentUser={user} />}
         {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
+        {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} onBack={goBack} />}
         {page === 'bizProfile' && selectedBusiness && (
           <BusinessPublicProfile
             business={selectedBusiness}
@@ -434,6 +444,7 @@ function App() {
             isAdmin={isAdmin}
             onBack={goBack}
             onSelectBusiness={openBusiness}
+            onMessage={openMessages}
           />
         )}
       </div>

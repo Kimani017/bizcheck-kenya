@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { SkeletonProfile } from './Skeleton'
+import { IdentityLine } from './Identity'
 
 const TABS = [
   { id: 'business', label: 'My Business', icon: '🏢' },
@@ -49,7 +50,7 @@ const THEMES = {
   },
 }
 
-export default function UserProfile({ profileUserId, currentUser, isAdmin, onBack, onSelectBusiness }) {
+export default function UserProfile({ profileUserId, currentUser, isAdmin, onBack, onSelectBusiness, onMessage }) {
   const [activeTab, setActiveTab] = useState('business')
   const [profile, setProfile] = useState(null)
   const [businesses, setBusinesses] = useState([])
@@ -125,7 +126,16 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
   if (!profile) return <div className="section"><p className="muted">Profile not found.</p></div>
 
   const joinDate = new Date(profile.created_at).toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })
-  const visibleTabs = canSeePrivate ? TABS : [TABS[0]]
+  const isAdminOwnProfile = isOwner && isAdmin
+  const visibleTabs = isAdminOwnProfile
+    ? TABS.filter(t => t.id !== 'business')
+    : canSeePrivate ? TABS : [TABS[0]]
+
+  useEffect(() => {
+    if (isAdminOwnProfile && activeTab === 'business') {
+      setActiveTab('personal')
+    }
+  }, [isAdminOwnProfile])
   const initial = (profile.name || profile.username || 'U')[0].toUpperCase()
 
   return (
@@ -141,17 +151,26 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
         </div>
 
         {/* Avatar + name */}
-        <div style={{ padding: '8px 24px 0', display: 'flex', alignItems: 'center', gap: 18 }}>
-          <div style={{ width: 70, height: 70, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: '3px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: 'var(--surface)', flexShrink: 0, backdropFilter: 'blur(4px)' }}>
-            {initial}
+        <div style={{ padding: '8px 24px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+            <div style={{ width: 70, height: 70, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: '3px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: 'var(--surface)', flexShrink: 0, backdropFilter: 'blur(4px)' }}>
+              {initial}
+            </div>
+            <div>
+              <div style={{ color: 'var(--surface)', fontSize: 20, fontWeight: 700, marginBottom: 3, display: 'flex', alignItems: 'center' }}>
+                <IdentityLine profile={profile} size={18} fontWeight={700} color="var(--surface)" />
+              </div>
+              {profile.role !== 'superadmin' && <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>{profile.name} · Since {joinDate}</div>}
+            </div>
           </div>
-          <div>
-            <div style={{ color: 'var(--surface)', fontSize: 20, fontWeight: 700, marginBottom: 3 }}>@{profile.username || 'user'}</div>
-            <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>{profile.name} · Since {joinDate}</div>
-            {profile.role === 'admin' && (
-              <span style={{ marginTop: 6, display: 'inline-block', background: 'rgba(255,255,255,0.2)', color: 'var(--surface)', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20, letterSpacing: '0.5px' }}>ADMIN</span>
-            )}
-          </div>
+          {!isOwner && onMessage && (
+            <button
+              onClick={() => onMessage(profileUserId)}
+              style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(4px)' }}
+            >
+              💬 Message
+            </button>
+          )}
         </div>
 
         {/* Decorative circles */}
@@ -206,46 +225,58 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
           {/* ── MY BUSINESS ── */}
           {activeTab === 'business' && (
             <div style={{ background: T.bg, padding: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-                <div>
-                  <h3 style={{ color: T.accentDark, fontSize: 17, marginBottom: 2 }}>My Businesses</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Businesses you own on BizCheck</p>
-                </div>
-                <button
-                  onClick={() => setShowBusinessForm(!showBusinessForm)}
-                  style={{ padding: '8px 16px', background: showBusinessForm ? 'var(--surface)' : T.accent, color: showBusinessForm ? T.accent : 'var(--surface)', border: `1.5px solid ${T.accent}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
-                >
-                  {showBusinessForm ? '✕ Cancel' : '+ List a business'}
-                </button>
-              </div>
-
-              {showBusinessForm && <BusinessForm currentUser={currentUser} theme={T} onSubmitted={() => { setShowBusinessForm(false); loadAll() }} />}
-
-              {businesses.length === 0 && !showBusinessForm ? (
+              {isOwner && isAdmin ? (
                 <div style={{ textAlign: 'center', padding: '40px 20px', background: 'var(--surface)', borderRadius: 14, border: `1.5px dashed ${T.accentBorder}` }}>
-                  <div style={{ fontSize: 48, marginBottom: 12 }}>🏢</div>
-                  <h4 style={{ color: T.accentDark, marginBottom: 8, fontSize: 15 }}>No businesses listed yet</h4>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 18 }}>List your business to get verified and reach more customers across Kenya.</p>
-                  <button onClick={() => setShowBusinessForm(true)} style={{ padding: '10px 24px', background: T.accent, color: 'var(--surface)', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                    List your business →
-                  </button>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>🛡️</div>
+                  <h4 style={{ color: T.accentDark, marginBottom: 8, fontSize: 15 }}>Admins can't own businesses</h4>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+                    To keep BizCheck's verification process impartial, admin and superadmin accounts cannot list, own, or claim a business.
+                  </p>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {businesses.map((b) => (
-                    <OwnedBizCard
-                      key={b.id}
-                      business={b}
-                      theme={T}
-                      onClick={
-                        // Only clickable if it's an approved business (not a pending submission)
-                        !b.is_submission && b.status !== 'pending' && onSelectBusiness
-                          ? () => onSelectBusiness(b)
-                          : null
-                      }
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
+                    <div>
+                      <h3 style={{ color: T.accentDark, fontSize: 17, marginBottom: 2 }}>My Businesses</h3>
+                      <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Businesses you own on BizCheck</p>
+                    </div>
+                    <button
+                      onClick={() => setShowBusinessForm(!showBusinessForm)}
+                      style={{ padding: '8px 16px', background: showBusinessForm ? 'var(--surface)' : T.accent, color: showBusinessForm ? T.accent : 'var(--surface)', border: `1.5px solid ${T.accent}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                      {showBusinessForm ? '✕ Cancel' : '+ List a business'}
+                    </button>
+                  </div>
+
+                  {showBusinessForm && <BusinessForm currentUser={currentUser} theme={T} onSubmitted={() => { setShowBusinessForm(false); loadAll() }} />}
+
+                  {businesses.length === 0 && !showBusinessForm ? (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', background: 'var(--surface)', borderRadius: 14, border: `1.5px dashed ${T.accentBorder}` }}>
+                      <div style={{ fontSize: 48, marginBottom: 12 }}>🏢</div>
+                      <h4 style={{ color: T.accentDark, marginBottom: 8, fontSize: 15 }}>No businesses listed yet</h4>
+                      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 18 }}>List your business to get verified and reach more customers across Kenya.</p>
+                      <button onClick={() => setShowBusinessForm(true)} style={{ padding: '10px 24px', background: T.accent, color: 'var(--surface)', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                        List your business →
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {businesses.map((b) => (
+                        <OwnedBizCard
+                          key={b.id}
+                          business={b}
+                          theme={T}
+                          onClick={
+                            // Only clickable if it's an approved business (not a pending submission)
+                            !b.is_submission && b.status !== 'pending' && onSelectBusiness
+                              ? () => onSelectBusiness(b)
+                              : null
+                          }
                     />
                   ))}
                 </div>
+              )}
+                </>
               )}
             </div>
           )}
