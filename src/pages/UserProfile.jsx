@@ -75,6 +75,12 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
     if (profileUserId) loadAll()
   }, [profileUserId, currentUser?.id])
 
+  useEffect(() => {
+    if (isOwner && isAdmin && activeTab === 'business') {
+      setActiveTab('personal')
+    }
+  }, [isOwner, isAdmin])
+
   async function loadAll() {
     setLoading(true)
     try {
@@ -130,12 +136,6 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
   const visibleTabs = isAdminOwnProfile
     ? TABS.filter(t => t.id !== 'business')
     : canSeePrivate ? TABS : [TABS[0]]
-
-  useEffect(() => {
-    if (isAdminOwnProfile && activeTab === 'business') {
-      setActiveTab('personal')
-    }
-  }, [isAdminOwnProfile])
   const initial = (profile.name || profile.username || 'U')[0].toUpperCase()
 
   return (
