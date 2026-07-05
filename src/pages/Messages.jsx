@@ -3,13 +3,24 @@ import { supabase } from '../supabase'
 import { IdentityLine } from './Identity'
 import { SkeletonList } from './Skeleton'
 
-export default function Messages({ currentUser, initialTargetId, onBack }) {
+function linkify(text) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g)
+  return parts.map((part, i) =>
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>{part}</a>
+      : part
+  )
+}
+
+export default function Messages({ currentUser, initialTargetId, isAdmin, onBack }) {
   const [threads, setThreads] = useState([])
   const [activeThread, setActiveThread] = useState(null) // { profile, otherUserId }
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [showLinkPicker, setShowLinkPicker] = useState(false)
+  const [otherBusinesses, setOtherBusinesses] = useState([])
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -94,6 +105,33 @@ export default function Messages({ currentUser, initialTargetId, onBack }) {
     openThreadWith(activeThread.otherUserId)
   }
 
+  async function openLinkPicker() {
+    const { data } = await supabase.from('businesses').select('id, name').eq('owner_id', activeThread.otherUserId)
+    setOtherBusinesses(data || [])
+    setShowLinkPicker(true)
+  }
+
+  async function sendEditLink(targetType, businessId = null, businessName = null) {
+    const { data: token, error } = await supabase.rpc('create_edit_link', {
+      p_target_user_id: activeThread.otherUserId,
+      p_target_type: targetType,
+      p_target_business_id: businessId,
+    })
+    if (error) { alert('Error creating link: ' + error.message); return }
+
+    const url = `${window.location.origin}/#editlink-${token}`
+    const label = targetType === 'personal' ? 'your personal info' : `"${businessName}"`
+    const linkMessage = `🔗 You can edit ${label} here: ${url}\n\nThis link expires 5 minutes after you open it, so please make your changes right away.`
+
+    await supabase.from('direct_messages').insert({
+      sender_id: currentUser.id,
+      recipient_id: activeThread.otherUserId,
+      message: linkMessage,
+    })
+    setShowLinkPicker(false)
+    openThreadWith(activeThread.otherUserId)
+  }
+
   if (loading) return <div className="section" style={{ maxWidth: 820 }}><h2 style={{ marginBottom: 20 }}>Messages</h2><SkeletonList count={5} /></div>
 
   return (
@@ -143,9 +181,24 @@ export default function Messages({ currentUser, initialTargetId, onBack }) {
             </div>
           ) : (
             <>
-              <div style={{ padding: '10px 16px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
+              <div style={{ padding: '10px 16px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                 <IdentityLine profile={activeThread.profile} fontWeight={700} color="var(--text)" />
+                {isAdmin && (
+                  <button className="btn-ghost-small" onClick={openLinkPicker} style={{ fontSize: 12 }}>🔗 Send edit link</button>
+                )}
               </div>
+
+              {showLinkPicker && (
+                <div style={{ padding: '12px 16px', background: '#E1F5EE', borderBottom: '1px solid #9FE1CB', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#085041', marginBottom: 2 }}>Choose what they can edit:</div>
+                  <button className="btn-small" style={{ fontSize: 12 }} onClick={() => sendEditLink('personal')}>👤 Personal info</button>
+                  {otherBusinesses.map((b) => (
+                    <button key={b.id} className="btn-small" style={{ fontSize: 12 }} onClick={() => sendEditLink('business', b.id, b.name)}>🏢 {b.name}</button>
+                  ))}
+                  {otherBusinesses.length === 0 && <div className="muted" style={{ fontSize: 12 }}>This user has no businesses to edit.</div>}
+                  <button className="btn-ghost-small" style={{ fontSize: 12, alignSelf: 'flex-start' }} onClick={() => setShowLinkPicker(false)}>Cancel</button>
+                </div>
+              )}
               <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {messages.map((m) => {
                   const isMe = m.sender_id === currentUser.id
@@ -156,7 +209,7 @@ export default function Messages({ currentUser, initialTargetId, onBack }) {
                         background: isMe ? '#1D9E75' : 'var(--hover-bg)',
                         color: isMe ? '#fff' : 'var(--text)', fontSize: 14,
                       }}>
-                        {m.message}
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{linkify(m.message)}</div>
                         <div style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>
                           {new Date(m.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}
                         </div>

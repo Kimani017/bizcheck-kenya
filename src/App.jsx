@@ -17,6 +17,7 @@ import Pleads from './pages/Pleads'
 import LoginOtp from './pages/LoginOtp'
 import AdminIdCheck from './pages/AdminIdCheck'
 import Messages from './pages/Messages'
+import EditViaLink from './pages/EditViaLink'
 import AdminApplicationForm from './pages/AdminApplicationForm'
 import EnterAdminCode from './pages/EnterAdminCode'
 import Settings from './pages/Settings'
@@ -41,6 +42,7 @@ function App() {
   const [needsLoginOtp, setNeedsLoginOtp] = useState(false)
   const [needsAdminIdCheck, setNeedsAdminIdCheck] = useState(false)
   const [messageTargetId, setMessageTargetId] = useState(null)
+  const [editLinkToken, setEditLinkToken] = useState(null)
   const [restoring, setRestoring] = useState(true)
   const [theme, setTheme] = useState(() => localStorage.getItem('bizcheck_theme') || 'light')
   const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768)
@@ -179,6 +181,12 @@ function App() {
   }, [])
 
   async function init() {
+    // Check for an edit-link deep link before doing anything else
+    const hash = window.location.hash
+    if (hash.startsWith('#editlink-')) {
+      setEditLinkToken(hash.replace('#editlink-', ''))
+    }
+
     const { data } = await supabase.auth.getUser()
     const currentUser = data.user || null
     setUser(currentUser)
@@ -290,6 +298,16 @@ function App() {
 
   if (recoveringPassword) {
     return <ResetPassword onDone={() => { setRecoveringPassword(false); navigate('home') }} />
+  }
+
+  if (editLinkToken && user) {
+    return (
+      <EditViaLink
+        token={editLinkToken}
+        currentUser={user}
+        onDone={() => { setEditLinkToken(null); window.history.replaceState({}, '', '#home'); navigate('home') }}
+      />
+    )
   }
 
   if (user && needsLoginOtp) {
@@ -420,7 +438,7 @@ function App() {
         {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} />}
         {page === 'support' && <Support onBack={goBack} currentUser={user} />}
         {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
-        {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} onBack={goBack} />}
+        {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} isAdmin={isAdmin} onBack={goBack} />}
         {page === 'bizProfile' && selectedBusiness && (
           <BusinessPublicProfile
             business={selectedBusiness}
