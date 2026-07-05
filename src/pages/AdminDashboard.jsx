@@ -77,7 +77,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     setLoading(true)
     const [bizRes, subRes, repRes] = await Promise.all([
       supabase.from('businesses').select('*').order('unique_reporter_count', { ascending: false }),
-      supabase.from('submissions').select('*, profiles(name, email, username)').eq('status', 'pending').order('created_at', { ascending: false }),
+      supabase.from('submissions').select('*, profiles!submissions_submitter_id_fkey(name, email, username)').eq('status', 'pending').order('created_at', { ascending: false }),
       supabase.from('reports').select('*, businesses(name, status, unique_reporter_count)').order('created_at', { ascending: false }),
     ])
     setBusinesses(bizRes.data || [])
