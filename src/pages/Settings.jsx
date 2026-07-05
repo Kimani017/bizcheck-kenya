@@ -1,11 +1,12 @@
-export default function Settings({ theme, toggleTheme, onBack }) {
+export default function Settings({ theme, toggleTheme, onBack, onLogout, onOpenSupport, businessMode, onSwitchToPersonal }) {
   return (
     <div className="section" style={{ maxWidth: 560 }}>
       <button className="link-btn" onClick={onBack}>← Back</button>
       <h2 style={{ marginBottom: 6 }}>Settings</h2>
       <p className="muted" style={{ marginBottom: 24 }}>Manage your app preferences.</p>
 
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* APPEARANCE */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--hover-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
             {theme === 'light' ? '🌙' : '☀️'}
@@ -31,8 +32,46 @@ export default function Settings({ theme, toggleTheme, onBack }) {
         </button>
       </div>
 
+      {/* SWITCH ACCOUNT (business mode only) */}
+      {businessMode && (
+        <button
+          onClick={onSwitchToPersonal}
+          style={{ width: '100%', textAlign: 'left', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12, cursor: 'pointer' }}
+        >
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--hover-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>👤</div>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-strong)' }}>Switch to personal account</div>
+            <div className="muted" style={{ fontSize: 13 }}>Currently managing: {businessMode.name}</div>
+          </div>
+        </button>
+      )}
+
+      {/* SUPPORT */}
+      <button
+        onClick={onOpenSupport}
+        style={{ width: '100%', textAlign: 'left', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12, cursor: 'pointer' }}
+      >
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--hover-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>💬</div>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-strong)' }}>Support</div>
+          <div className="muted" style={{ fontSize: 13 }}>Chat with our team or get help</div>
+        </div>
+      </button>
+
+      {/* LOG OUT */}
+      <button
+        onClick={onLogout}
+        style={{ width: '100%', textAlign: 'left', background: 'var(--surface)', border: '1px solid #F7C1C1', borderRadius: 14, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}
+      >
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: '#FCEBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🚪</div>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 15, color: '#A32D2D' }}>Log out</div>
+          <div className="muted" style={{ fontSize: 13 }}>Sign out of your BizCheck account</div>
+        </div>
+      </button>
+
       <p className="muted" style={{ fontSize: 13, marginTop: 24 }}>
-        More settings — like notification preferences and account management — are coming soon.
+        More settings — like notification preferences — are coming soon.
       </p>
     </div>
   )

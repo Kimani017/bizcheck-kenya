@@ -11,6 +11,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   const [activeThreadUserId, setActiveThreadUserId] = useState(null)
   const [threadMessages, setThreadMessages] = useState([])
   const [chatText, setChatText] = useState('')
+  const [userReports, setUserReports] = useState([])
   const [bizSubTab, setBizSubTab] = useState('verified') // verified | flagged | scam
   const [reportSubTab, setReportSubTab] = useState('pending') // pending | reported | log
 
@@ -20,6 +21,8 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(null)
   const [isSuperadmin, setIsSuperadmin] = useState(false)
+  const [banCodeModal, setBanCodeModal] = useState(null) // businessId awaiting code, or null
+  const [banCodeInput, setBanCodeInput] = useState('')
   const [currentAdminId, setCurrentAdminId] = useState(null)
 
   useEffect(() => { checkAdmin() }, [])
@@ -52,16 +55,21 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
 
   // Banning requires the superadmin's secret code unless you ARE the superadmin
   async function banBusiness(businessId) {
-    let code = null
     if (!isSuperadmin) {
-      code = prompt('Banning requires authorization. Enter the ban code from the superadmin:')
-      if (code === null) return
+      setBanCodeInput('')
+      setBanCodeModal(businessId)
+      return
     }
+    await submitBan(businessId, null)
+  }
+
+  async function submitBan(businessId, code) {
     const { error } = await supabase.rpc('ban_business_with_code', { p_business_id: businessId, p_code: code })
     if (error) {
       alert(error.message.includes('Too many') ? '⏱ ' + error.message : 'Error: ' + error.message)
       return
     }
+    setBanCodeModal(null)
     loadAll()
   }
 
@@ -75,8 +83,29 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     setBusinesses(bizRes.data || [])
     setSubmissions(subRes.data || [])
     setReports(repRes.data || [])
+
+    const { data: userRepData } = await supabase
+      .from('user_reports')
+      .select('*, reporter:profiles!user_reports_reporter_id_fkey(username, name), reported:profiles!user_reports_reported_user_id_fkey(username, name)')
+      .order('created_at', { ascending: false })
+    setUserReports(userRepData || [])
+
     await loadChatThreads()
     setLoading(false)
+  }
+
+  async function banReportedUser(report) {
+    const note = prompt('Note for banning this user (internal record):') || ''
+    const { error } = await supabase.rpc('ban_user_from_report', { p_report_id: report.id, p_note: note })
+    if (error) { alert('Error: ' + error.message); return }
+    loadAll()
+  }
+
+  async function dismissUserReport(report) {
+    const note = prompt('Reason for dismissing (internal record):') || ''
+    const { error } = await supabase.rpc('dismiss_user_report', { p_report_id: report.id, p_note: note })
+    if (error) { alert('Error: ' + error.message); return }
+    loadAll()
   }
 
   // ── SUPPORT CHAT ──
@@ -148,22 +177,32 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   async function approveSubmission(sub) {
     const { data: existing } = await supabase.from('businesses').select('id').ilike('name', sub.name).single()
 
-    if (existing) {
-      const { error } = await supabase.from('businesses').update({
-        category: sub.category, description: sub.description, phone: sub.phone,
-        mpesa_till: sub.mpesa_till, fb_handle: sub.fb_handle, tiktok_handle: sub.tiktok_handle,
-        instagram_handle: sub.instagram_handle, owner_id: sub.submitter_id, status: 'verified', admin_reviewed: true,
-      }).eq('id', existing.id)
-      if (error) { alert('Error: ' + error.message); return }
-    } else {
-      const { error } = await supabase.from('businesses').insert({
-        name: sub.name, category: sub.category, description: sub.description,
-        phone: sub.phone, mpesa_till: sub.mpesa_till, fb_handle: sub.fb_handle,
-        tiktok_handle: sub.tiktok_handle, instagram_handle: sub.instagram_handle,
-        location: sub.location, owner_id: sub.submitter_id, status: 'verified', admin_reviewed: true,
-      })
-      if (error) { alert('Error: ' + error.message); return }
+    const commonFields = {
+      category: sub.category, description: sub.description, phone: sub.phone,
+      mpesa_till: sub.mpesa_till, fb_handle: sub.fb_handle, tiktok_handle: sub.tiktok_handle,
+      instagram_handle: sub.instagram_handle, owner_id: sub.submitter_id, status: 'verified',
+      business_username: sub.business_username, location_type: sub.location_type,
+      opening_time: sub.opening_time, closing_time: sub.closing_time, other_branches: sub.other_branches,
+      owner_name: sub.owner_name, owner_id_number: sub.owner_id_number, owner_age: sub.owner_age,
+      owner_email: sub.owner_email, owner_phone: sub.owner_phone,
     }
+
+    let businessId
+    if (existing) {
+      const { error } = await supabase.from('businesses').update(commonFields).eq('id', existing.id)
+      if (error) { alert('Error: ' + error.message); return }
+      businessId = existing.id
+    } else {
+      const { data: created, error } = await supabase.from('businesses').insert({
+        name: sub.name, location: sub.location, ...commonFields,
+      }).select().single()
+      if (error) { alert('Error: ' + error.message); return }
+      businessId = created.id
+    }
+
+    // Generate the permanent bizcode for logging into business mode
+    const { data: bizcode, error: codeError } = await supabase.rpc('finalize_business_verification', { p_business_id: businessId })
+    if (codeError) { alert('Verified, but could not generate bizcode: ' + codeError.message); }
 
     await supabase.from('submissions').update({
       status: 'approved', reviewed_by: currentAdminId, reviewed_at: new Date().toISOString(),
@@ -172,7 +211,26 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     await supabase.from('audit_log').insert({
       admin_id: currentAdminId, action_type: 'approve_submission', target_table: 'submissions', target_id: sub.id,
     })
+
+    // Email the owner their bizcode
+    if (bizcode) {
+      const { data: sessionData } = await supabase.auth.getSession()
+      try {
+        await fetch('https://ubjndgyukfhngytfabnw.supabase.co/functions/v1/send-business-verified', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionData.session.access_token}` },
+          body: JSON.stringify({ email: sub.owner_email || sub.email, name: sub.owner_name, businessName: sub.name, bizcode }),
+        })
+      } catch (e) { /* email failure shouldn't block approval */ }
+    }
+
     loadAll()
+  }
+
+  async function viewDoc(path) {
+    const { data, error } = await supabase.storage.from('business-documents').createSignedUrl(path, 300)
+    if (error) { alert('Error loading document: ' + error.message); return }
+    window.open(data.signedUrl, '_blank')
   }
 
   async function rejectSubmission(sub) {
@@ -275,6 +333,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
           ['businesses', 'All Businesses'],
           ['reports', 'Reports'],
           ['verification', `Business Verification${submissions.length ? ` (${submissions.length})` : ''}`],
+          ['userReports', `User Reports${userReports.filter(r => r.status === 'pending').length ? ` (${userReports.filter(r => r.status === 'pending').length})` : ''}`],
           ['chat', `Support Chat${chatThreads.reduce((s, t) => s + t.unreadCount, 0) ? ` (${chatThreads.reduce((s, t) => s + t.unreadCount, 0)})` : ''}`],
         ].map(([id, label]) => (
           <button
@@ -454,6 +513,26 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
                   {s.location && `📍 ${s.location} · `}{s.phone} {s.mpesa_till && `· ${s.mpesa_till}`} {s.fb_handle && `· ${s.fb_handle}`}
                 </div>
                 {s.description && <div style={{ fontSize: 13, marginTop: 4 }}>{s.description}</div>}
+                {s.business_username && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Business username: @{s.business_username}</div>}
+                {(s.opening_time || s.closing_time) && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Hours: {s.opening_time || '—'} - {s.closing_time || '—'}</div>}
+                {s.other_branches && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Other branches: {s.other_branches}</div>}
+
+                {s.owner_name && (
+                  <div style={{ marginTop: 10, background: 'var(--surface-2)', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>
+                    <div style={{ fontWeight: 700, marginBottom: 4 }}>Applicant details</div>
+                    <div><strong>Name:</strong> {s.owner_name}</div>
+                    <div><strong>ID number:</strong> {s.owner_id_number}</div>
+                    <div><strong>Age:</strong> {s.owner_age}</div>
+                    <div><strong>Email:</strong> {s.owner_email}</div>
+                    <div><strong>Phone:</strong> {s.owner_phone}</div>
+                    <div style={{ marginTop: 6, display: 'flex', gap: 12 }}>
+                      {s.id_photo_url && <button className="link-btn" style={{ margin: 0, fontSize: 12 }} onClick={() => viewDoc(s.id_photo_url)}>🪪 View ID photo</button>}
+                      {s.permit_photo_url && <button className="link-btn" style={{ margin: 0, fontSize: 12 }} onClick={() => viewDoc(s.permit_photo_url)}>📄 View permit</button>}
+                      {s.registration_photo_url && <button className="link-btn" style={{ margin: 0, fontSize: 12 }} onClick={() => viewDoc(s.registration_photo_url)}>📄 View registration</button>}
+                    </div>
+                  </div>
+                )}
+
                 <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
                   Submitted by:{' '}
                   {s.submitter_id ? (
@@ -468,6 +547,34 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
                 <button className="btn-small" onClick={() => approveSubmission(s)}>Approve</button>
                 <button className="btn-ghost-small" onClick={() => rejectSubmission(s)}>Reject</button>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ══════════════ USER REPORTS ══════════════ */}
+      {mainTab === 'userReports' && (
+        userReports.length === 0 ? <p className="muted">No user reports yet.</p> :
+        <div className="admin-list">
+          {userReports.map((r) => (
+            <div className="admin-row" key={r.id} style={{ flexWrap: 'wrap' }}>
+              <div>
+                <strong>@{r.reported?.username || 'user'}</strong>
+                <span className={`badge ${r.status === 'pending' ? 'badge-pending' : r.status === 'banned' ? 'badge-danger' : 'badge-verified'}`} style={{ marginLeft: 8 }}>{r.status}</span>
+                <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                  Reported by @{r.reporter?.username || 'user'} · {r.reason}
+                </div>
+                {r.details && <div style={{ fontSize: 13, marginTop: 4 }}>{r.details}</div>}
+                <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                  {new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+              </div>
+              {r.status === 'pending' && (
+                <div className="admin-actions">
+                  <button className="btn-small" style={{ background: '#A32D2D' }} onClick={() => banReportedUser(r)}>Ban user</button>
+                  <button className="btn-ghost-small" onClick={() => dismissUserReport(r)}>Dismiss</button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -562,6 +669,32 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* BAN CODE MODAL — masked input, replaces window.prompt */}
+      {banCodeModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, maxWidth: 380, width: '100%', border: '1px solid var(--border)' }}>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>🔐</div>
+              <h3 style={{ marginBottom: 6, color: 'var(--text-strong)' }}>Ban authorization required</h3>
+              <p className="muted" style={{ fontSize: 13 }}>Enter the ban code from the superadmin to proceed.</p>
+            </div>
+            <input
+              type="password"
+              value={banCodeInput}
+              onChange={(e) => setBanCodeInput(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === 'Enter' && submitBan(banCodeModal, banCodeInput.trim())}
+              placeholder="BAN-XXXXXXXX"
+              autoFocus
+              style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 15, textAlign: 'center', letterSpacing: 2, fontFamily: 'monospace', background: 'var(--surface-2)', color: 'var(--text)', marginBottom: 14, boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn-primary" style={{ flex: 1 }} onClick={() => submitBan(banCodeModal, banCodeInput.trim())}>Ban business</button>
+              <button className="btn-ghost-small" onClick={() => setBanCodeModal(null)}>Cancel</button>
+            </div>
           </div>
         </div>
       )}

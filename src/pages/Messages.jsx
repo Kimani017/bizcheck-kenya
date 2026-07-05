@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { IdentityLine } from './Identity'
 import { SkeletonList } from './Skeleton'
+import ReportUserModal from './ReportUserModal'
 
 function linkify(text) {
   const parts = text.split(/(https?:\/\/[^\s]+)/g)
@@ -21,6 +22,7 @@ export default function Messages({ currentUser, initialTargetId, isAdmin, onBack
   const [loading, setLoading] = useState(true)
   const [showLinkPicker, setShowLinkPicker] = useState(false)
   const [otherBusinesses, setOtherBusinesses] = useState([])
+  const [showReportModal, setShowReportModal] = useState(false)
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -183,9 +185,12 @@ export default function Messages({ currentUser, initialTargetId, isAdmin, onBack
             <>
               <div style={{ padding: '10px 16px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                 <IdentityLine profile={activeThread.profile} fontWeight={700} color="var(--text)" />
-                {isAdmin && (
-                  <button className="btn-ghost-small" onClick={openLinkPicker} style={{ fontSize: 12 }}>🔗 Send edit link</button>
-                )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {isAdmin && (
+                    <button className="btn-ghost-small" onClick={openLinkPicker} style={{ fontSize: 12 }}>🔗 Send edit link</button>
+                  )}
+                  <button className="btn-ghost-small" style={{ fontSize: 12, color: '#E24B4A' }} onClick={() => setShowReportModal(true)}>🚩 Report</button>
+                </div>
               </div>
 
               {showLinkPicker && (
@@ -235,6 +240,14 @@ export default function Messages({ currentUser, initialTargetId, isAdmin, onBack
           )}
         </div>
       </div>
+      {showReportModal && activeThread && (
+        <ReportUserModal
+          reportedUserId={activeThread.otherUserId}
+          reportedUsername={activeThread.profile?.username || 'user'}
+          currentUser={currentUser}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
     </div>
   )
 }

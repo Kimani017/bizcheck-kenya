@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import ReportUserModal from './ReportUserModal'
 
 function StarDisplay({ rating, size = 14 }) {
   return (
@@ -216,6 +217,7 @@ function ReviewWithThread({ review, existingReplies, currentUser, businessId, on
   const [showReplyBox, setShowReplyBox] = useState(false)
   const [message, setMessage] = useState('')
   const [posting, setPosting] = useState(false)
+  const [showReportModal, setShowReportModal] = useState(false)
   const [threadOpen, setThreadOpen] = useState(existingReplies.length > 0 && existingReplies.length <= 2)
 
   async function postReply() {
@@ -280,11 +282,16 @@ function ReviewWithThread({ review, existingReplies, currentUser, businessId, on
         </div>
       )}
 
-      {/* REPLY BUTTON / FORM — right here in the dashboard */}
+      {/* REPLY + REPORT BUTTONS */}
       {!showReplyBox ? (
-        <button className="link-btn" style={{ margin: '10px 0 0', fontSize: 12, color: '#1D9E75' }} onClick={() => setShowReplyBox(true)}>
-          💬 {existingReplies.length > 0 ? 'Add another reply' : 'Reply to this review'}
-        </button>
+        <div style={{ display: 'flex', gap: 14, marginTop: 10 }}>
+          <button className="link-btn" style={{ margin: 0, fontSize: 12, color: '#1D9E75' }} onClick={() => setShowReplyBox(true)}>
+            💬 {existingReplies.length > 0 ? 'Add another reply' : 'Reply to this review'}
+          </button>
+          <button className="link-btn" style={{ margin: 0, fontSize: 12, color: '#E24B4A' }} onClick={() => setShowReportModal(true)}>
+            🚩 Report this user
+          </button>
+        </div>
       ) : (
         <div style={{ marginTop: 10 }}>
           <textarea
@@ -303,6 +310,16 @@ function ReviewWithThread({ review, existingReplies, currentUser, businessId, on
             </button>
           </div>
         </div>
+      )}
+
+      {showReportModal && (
+        <ReportUserModal
+          reportedUserId={review.reviewer_id}
+          reportedUsername={review.profiles?.username || 'user'}
+          businessId={businessId}
+          currentUser={currentUser}
+          onClose={() => setShowReportModal(false)}
+        />
       )}
     </div>
   )

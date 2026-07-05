@@ -18,6 +18,7 @@ import LoginOtp from './pages/LoginOtp'
 import AdminIdCheck from './pages/AdminIdCheck'
 import Messages from './pages/Messages'
 import EditViaLink from './pages/EditViaLink'
+import AccountChooser from './pages/AccountChooser'
 import AdminApplicationForm from './pages/AdminApplicationForm'
 import EnterAdminCode from './pages/EnterAdminCode'
 import Settings from './pages/Settings'
@@ -43,6 +44,9 @@ function App() {
   const [needsAdminIdCheck, setNeedsAdminIdCheck] = useState(false)
   const [messageTargetId, setMessageTargetId] = useState(null)
   const [editLinkToken, setEditLinkToken] = useState(null)
+  const [needsAccountChoice, setNeedsAccountChoice] = useState(false)
+  const [ownedVerifiedBusinesses, setOwnedVerifiedBusinesses] = useState([])
+  const [businessMode, setBusinessMode] = useState(null) // the business object, or null for personal
   const [restoring, setRestoring] = useState(true)
   const [theme, setTheme] = useState(() => localStorage.getItem('bizcheck_theme') || 'light')
   const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768)
@@ -141,11 +145,19 @@ function App() {
         setNeedsAdminIdCheck(false)
         sessionStorage.removeItem(NAV_KEY)
         sessionStorage.removeItem('bizcheck_admin_verified')
+        sessionStorage.removeItem('bizcheck_account_choice')
+        setBusinessMode(null)
         return
       }
       if (event === 'SIGNED_IN') {
         setUser(session?.user || null)
         if (session?.user) {
+          supabase.from('profiles').select('is_banned').eq('id', session.user.id).single().then(({ data: banCheck }) => {
+            if (banCheck?.is_banned) {
+              alert('Your account has been banned from BizCheck Kenya for violating our community guidelines.')
+              supabase.auth.signOut()
+            }
+          })
           checkUsername(session.user.id)
           setSelectedBusiness(null)
           setSelectedUserId(null)
@@ -163,6 +175,8 @@ function App() {
             const alreadyVerified = sessionStorage.getItem('bizcheck_admin_verified') === 'true'
             if (admin && !alreadyVerified) {
               setNeedsLoginOtp(true)
+            } else if (!admin) {
+              checkAccountChoice(session.user.id)
             }
           })
         }
@@ -191,7 +205,17 @@ function App() {
     const currentUser = data.user || null
     setUser(currentUser)
     if (currentUser) {
+      const { data: profile } = await supabase.from('profiles').select('role, is_banned').eq('id', currentUser.id).single()
+      if (profile?.is_banned) {
+        alert('Your account has been banned from BizCheck Kenya for violating our community guidelines.')
+        await supabase.auth.signOut()
+        setCheckingAuth(false)
+        return
+      }
       await Promise.all([checkAdmin(currentUser.id), checkUsername(currentUser.id), checkPendingApplication(currentUser.id)])
+      if (!profile || !['admin', 'superadmin'].includes(profile.role)) {
+        await checkAccountChoice(currentUser.id)
+      }
     }
     setCheckingAuth(false)
 
@@ -231,6 +255,15 @@ function App() {
       setPendingApplication(data.status)
     } else {
       setPendingApplication(null)
+    }
+  }
+
+  async function checkAccountChoice(userId) {
+    const { data } = await supabase.from('businesses').select('*').eq('owner_id', userId).eq('status', 'verified').not('bizcode', 'is', null)
+    setOwnedVerifiedBusinesses(data || [])
+    const alreadyChosen = sessionStorage.getItem('bizcheck_account_choice') === 'true'
+    if (data && data.length > 0 && !alreadyChosen) {
+      setNeedsAccountChoice(true)
     }
   }
 
@@ -325,6 +358,22 @@ function App() {
     return <SetUsername user={user} onDone={() => setNeedsUsername(false)} />
   }
 
+  if (user && needsAccountChoice) {
+    return (
+      <AccountChooser
+        businesses={ownedVerifiedBusinesses}
+        onChoosePersonal={() => { sessionStorage.setItem('bizcheck_account_choice', 'true'); setNeedsAccountChoice(false) }}
+        onChooseBusiness={(biz) => {
+          sessionStorage.setItem('bizcheck_account_choice', 'true')
+          setBusinessMode(biz)
+          setNeedsAccountChoice(false)
+          setSelectedBusiness(biz)
+          navigate('bizDashboard', { business: biz })
+        }}
+      />
+    )
+  }
+
   if (user && pendingApplication === 'invited') {
     return <AdminApplicationForm currentUser={user} onDone={() => { setPendingApplication('submitted'); checkPendingApplication(user.id) }} />
   }
@@ -369,21 +418,22 @@ function App() {
 
           <div className="nav-links nav-links-center">
             <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button>
-            <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Trusted Sellers</button>
-            <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>Report a Scammer</button>
+            <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Market</button>
+            <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report a User' : 'Report a Scammer'}</button>
             {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
-            {isAdmin
-              ? <button className={page === 'adminProfiles' ? 'active' : ''} onClick={() => navigate('adminProfiles')}>Profiles</button>
-              : <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>}
+            {businessMode ? (
+              <button className={page === 'bizDashboard' ? 'active' : ''} onClick={() => { setSelectedBusiness(businessMode); navigate('bizDashboard', { business: businessMode }) }}>🏢 {businessMode.name}</button>
+            ) : isAdmin ? (
+              <button className={page === 'adminProfiles' ? 'active' : ''} onClick={() => navigate('adminProfiles')}>Profiles</button>
+            ) : (
+              <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>
+            )}
             <button className={page === 'messages' ? 'active' : ''} onClick={() => openMessages()}>Messages</button>
           </div>
 
           <div className="nav-links nav-links-right">
             <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
-            {isSuperadmin
-              ? <button className={page === 'pleads' ? 'active' : ''} onClick={() => navigate('pleads')}>Pleads</button>
-              : <button className={page === 'support' ? 'active' : ''} onClick={() => navigate('support')}>Support</button>}
-            <button onClick={handleLogout}>Log out</button>
+            {isSuperadmin && <button className={page === 'pleads' ? 'active' : ''} onClick={() => navigate('pleads')}>Pleads</button>}
           </div>
         </nav>
       ) : (
@@ -410,19 +460,20 @@ function App() {
             </div>
             <div className="mobile-menu-links">
               <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button>
-              <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Trusted Sellers</button>
-              <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>Report a Scammer</button>
+              <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Market</button>
+              <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report a User' : 'Report a Scammer'}</button>
               {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
-              {isAdmin
-              ? <button className={page === 'adminProfiles' ? 'active' : ''} onClick={() => navigate('adminProfiles')}>Profiles</button>
-              : <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>}
-            <button className={page === 'messages' ? 'active' : ''} onClick={() => openMessages()}>Messages</button>
+              {businessMode ? (
+                <button className={page === 'bizDashboard' ? 'active' : ''} onClick={() => { setSelectedBusiness(businessMode); navigate('bizDashboard', { business: businessMode }) }}>🏢 {businessMode.name}</button>
+              ) : isAdmin ? (
+                <button className={page === 'adminProfiles' ? 'active' : ''} onClick={() => navigate('adminProfiles')}>Profiles</button>
+              ) : (
+                <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>
+              )}
+              <button className={page === 'messages' ? 'active' : ''} onClick={() => openMessages()}>Messages</button>
               <div className="mobile-menu-divider" />
               <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
-              {isSuperadmin
-              ? <button className={page === 'pleads' ? 'active' : ''} onClick={() => navigate('pleads')}>Pleads</button>
-              : <button className={page === 'support' ? 'active' : ''} onClick={() => navigate('support')}>Support</button>}
-              <button onClick={handleLogout} style={{ color: '#E24B4A' }}>Log out</button>
+              {isSuperadmin && <button className={page === 'pleads' ? 'active' : ''} onClick={() => navigate('pleads')}>Pleads</button>}
             </div>
           </div>
         </>
@@ -432,10 +483,10 @@ function App() {
         {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
         {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} />}
         {page === 'report' && <ReportForm onDone={() => navigate('home')} prefill={reportPrefill} />}
-        {page === 'submit' && <SubmitBusiness onDone={() => navigate('directory')} />}
+        {page === 'submit' && <SubmitBusiness currentUser={user} onDone={() => navigate('directory')} />}
         {page === 'admin' && <AdminDashboard onSelectBusiness={openBusiness} onSelectUser={openUserProfile} />}
         {page === 'adminProfiles' && <AdminProfiles onSelectBusiness={openBusiness} onSelectUser={openUserProfile} currentUser={user} />}
-        {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} />}
+        {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} onLogout={handleLogout} onOpenSupport={() => navigate('support')} businessMode={businessMode} onSwitchToPersonal={() => { setBusinessMode(null); navigate('home') }} />}
         {page === 'support' && <Support onBack={goBack} currentUser={user} />}
         {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
         {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} isAdmin={isAdmin} onBack={goBack} />}
