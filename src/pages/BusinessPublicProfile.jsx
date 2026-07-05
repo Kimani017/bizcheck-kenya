@@ -13,7 +13,7 @@ function StarDisplay({ rating, size = 16 }) {
   )
 }
 
-export default function BusinessPublicProfile({ business, onBack, onReport, currentUser, isAdmin }) {
+export default function BusinessPublicProfile({ business, onBack, onReport, currentUser, isAdmin, businessMode, onMessageBusiness }) {
   const [biz, setBiz] = useState(business)
   const [reviews, setReviews] = useState([])
   const [replies, setReplies] = useState({}) // { review_id: [replies] }
@@ -164,6 +164,11 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
       </div>
       <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
         <button className="link-btn report-link" style={{ margin: 0 }} onClick={() => onReport(biz)}>🚩 Report this seller</button>
+        {businessMode && businessMode.id !== biz.id && onMessageBusiness && (
+          <button className="link-btn" style={{ margin: 0, color: '#085041' }} onClick={() => onMessageBusiness(biz)}>
+            💬 Message this business
+          </button>
+        )}
         {!biz.owner_id && !claimSubmitted && !isAdmin && (
           <button className="link-btn" style={{ margin: 0, color: '#085041' }} onClick={() => setShowClaimForm(!showClaimForm)}>
             🏢 Is this your business? Claim it

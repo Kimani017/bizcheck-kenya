@@ -19,6 +19,8 @@ import AdminIdCheck from './pages/AdminIdCheck'
 import Messages from './pages/Messages'
 import EditViaLink from './pages/EditViaLink'
 import AccountChooser from './pages/AccountChooser'
+import B2BChat from './pages/B2BChat'
+import B2BOversight from './pages/B2BOversight'
 import AdminApplicationForm from './pages/AdminApplicationForm'
 import EnterAdminCode from './pages/EnterAdminCode'
 import Settings from './pages/Settings'
@@ -47,6 +49,7 @@ function App() {
   const [needsAccountChoice, setNeedsAccountChoice] = useState(false)
   const [ownedVerifiedBusinesses, setOwnedVerifiedBusinesses] = useState([])
   const [businessMode, setBusinessMode] = useState(null) // the business object, or null for personal
+  const [b2bTargetBusiness, setB2bTargetBusiness] = useState(null)
   const [restoring, setRestoring] = useState(true)
   const [theme, setTheme] = useState(() => localStorage.getItem('bizcheck_theme') || 'light')
   const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768)
@@ -295,6 +298,11 @@ function App() {
     navigate('messages')
   }
 
+  function openB2BChat(targetBusiness = null) {
+    setB2bTargetBusiness(targetBusiness)
+    navigate('b2bChat')
+  }
+
   function goToReport(business = null) {
     setReportPrefill(business)
     navigate('report')
@@ -419,7 +427,9 @@ function App() {
           <div className="nav-links nav-links-center">
             <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button>
             <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Market</button>
-            <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report a User' : 'Report a Scammer'}</button>
+            {isSuperadmin
+              ? <button className={page === 'b2bOversight' ? 'active' : ''} onClick={() => navigate('b2bOversight')}>B2B</button>
+              : <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report a User' : 'Report a Scammer'}</button>}
             {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
             {businessMode ? (
               <button className={page === 'bizDashboard' ? 'active' : ''} onClick={() => { setSelectedBusiness(businessMode); navigate('bizDashboard', { business: businessMode }) }}>🏢 {businessMode.name}</button>
@@ -461,7 +471,9 @@ function App() {
             <div className="mobile-menu-links">
               <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button>
               <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Market</button>
-              <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report a User' : 'Report a Scammer'}</button>
+              {isSuperadmin
+              ? <button className={page === 'b2bOversight' ? 'active' : ''} onClick={() => navigate('b2bOversight')}>B2B</button>
+              : <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report a User' : 'Report a Scammer'}</button>}
               {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
               {businessMode ? (
                 <button className={page === 'bizDashboard' ? 'active' : ''} onClick={() => { setSelectedBusiness(businessMode); navigate('bizDashboard', { business: businessMode }) }}>🏢 {businessMode.name}</button>
@@ -490,6 +502,8 @@ function App() {
         {page === 'support' && <Support onBack={goBack} currentUser={user} />}
         {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
         {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} isAdmin={isAdmin} onBack={goBack} />}
+        {page === 'b2bChat' && businessMode && <B2BChat myBusiness={businessMode} initialTargetBusiness={b2bTargetBusiness} onBack={goBack} />}
+        {page === 'b2bOversight' && isSuperadmin && <B2BOversight onBack={goBack} />}
         {page === 'bizProfile' && selectedBusiness && (
           <BusinessPublicProfile
             business={selectedBusiness}
@@ -497,6 +511,8 @@ function App() {
             onReport={goToReport}
             currentUser={user}
             isAdmin={isAdmin}
+            businessMode={businessMode}
+            onMessageBusiness={openB2BChat}
           />
         )}
         {page === 'bizDashboard' && selectedBusiness && (
