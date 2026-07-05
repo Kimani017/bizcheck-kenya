@@ -4,6 +4,7 @@
 export function displayName(profile) {
   if (!profile) return 'user'
   if (profile.role === 'superadmin') return 'SuperAdmin'
+  if (profile.role === 'admin') return 'admin'
   return profile.username || 'user'
 }
 

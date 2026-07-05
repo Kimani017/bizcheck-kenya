@@ -7,7 +7,7 @@ function linkify(text) {
   const parts = text.split(/(https?:\/\/[^\s]+)/g)
   return parts.map((part, i) =>
     /^https?:\/\//.test(part)
-      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>{part}</a>
+      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: '#FFE58A', textDecoration: 'underline', fontWeight: 700, wordBreak: 'break-all' }}>{part}</a>
       : part
   )
 }

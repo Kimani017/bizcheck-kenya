@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { SkeletonList } from './Skeleton'
+import { IdentityLine } from './Identity'
 
 export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentUser, onApply }) {
   const [tab, setTab] = useState('businesses') // businesses | users | applications | personal
@@ -186,7 +187,7 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
       <div className="filter-row" style={{ marginBottom: 20 }}>
         {[
           ['businesses', `Businesses (${businesses.length})`],
-          ['users', `Users (${users.length})`],
+          ['users', `Users (${users.filter((u) => isSuperadmin || u.role !== 'superadmin').length})`],
           ...(isSuperadmin ? [['applications', `Admin Applications${pendingApps.length ? ` (${pendingApps.length})` : ''}`]] : []),
           ['personal', '🔒 Personal Info'],
         ].map(([id, label]) => (
@@ -224,13 +225,15 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
       {/* ══════ USERS ══════ */}
       {tab === 'users' && (
         <div className="admin-list">
-          {users.map((u) => {
+          {users
+            .filter((u) => isSuperadmin || u.role !== 'superadmin')
+            .map((u) => {
             const app = applications.find(a => a.user_id === u.id)
             return (
               <div className="admin-row" key={u.id}>
                 <div>
                   <button onClick={() => onSelectUser(u.id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-                    <strong style={{ color: '#1D9E75', textDecoration: 'underline' }}>@{u.username || 'no-username'}</strong>
+                    <span style={{ color: '#1D9E75' }}><IdentityLine profile={u} fontWeight={700} /></span>
                   </button>
                   {u.role !== 'user' && <span className="badge badge-verified" style={{ marginLeft: 8, textTransform: 'capitalize' }}>{u.role}</span>}
                   {app && app.status !== 'activated' && (
@@ -353,7 +356,7 @@ export default function AdminProfiles({ onSelectBusiness, onSelectUser, currentU
                         style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}
                       >
                         <span>
-                          <strong>@{p.username || 'no-username'}</strong>
+                          <IdentityLine profile={p} fontWeight={700} />
                           <span className="badge badge-verified" style={{ marginLeft: 8, textTransform: 'capitalize' }}>{p.role}</span>
                         </span>
                         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{isOpen ? '▲ Hide details' : '▼ View details'}</span>
