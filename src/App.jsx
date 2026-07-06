@@ -370,6 +370,7 @@ function App() {
     return (
       <AccountChooser
         businesses={ownedVerifiedBusinesses}
+        currentUser={user}
         onChoosePersonal={() => { sessionStorage.setItem('bizcheck_account_choice', 'true'); setNeedsAccountChoice(false) }}
         onChooseBusiness={(biz) => {
           sessionStorage.setItem('bizcheck_account_choice', 'true')

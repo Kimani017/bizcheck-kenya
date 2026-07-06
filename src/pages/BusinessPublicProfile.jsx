@@ -79,22 +79,31 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
       rating,
       review_text: reviewText || null,
     }
+    let submitError = null
     if (myReview) {
-      await supabase.from('reviews').update(payload).eq('id', myReview.id)
+      const { error } = await supabase.from('reviews').update(payload).eq('id', myReview.id)
+      submitError = error
     } else {
-      await supabase.from('reviews').insert(payload)
+      const { error } = await supabase.from('reviews').insert(payload)
+      submitError = error
     }
     setSubmitting(false)
+    if (submitError) { alert(submitError.message); return }
     loadReviews()
   }
 
   async function castVote(voteType) {
     if (!currentUser) { setVoteMsg('Please log in to vote.'); return }
     setVoting(true)
-    await supabase.from('votes').upsert(
+    const { error } = await supabase.from('votes').upsert(
       { business_id: biz.id, user_id: currentUser.id, vote_type: voteType },
       { onConflict: 'business_id,user_id' }
     )
+    if (error) {
+      setVoting(false)
+      setVoteMsg(error.message)
+      return
+    }
     const { data: updated } = await supabase.from('businesses').select('*').eq('id', biz.id).single()
     if (updated) setBiz(updated)
     setVoting(false)

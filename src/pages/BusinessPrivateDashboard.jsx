@@ -27,21 +27,24 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
     instagram_handle: business.instagram_handle || '',
   })
   const [saving, setSaving] = useState(false)
+  const [activityLog, setActivityLog] = useState([])
 
   useEffect(() => {
     loadData()
   }, [])
 
   async function loadData() {
-    const [revRes, viewRes, bizRes, replyRes] = await Promise.all([
+    const [revRes, viewRes, bizRes, replyRes, activityRes] = await Promise.all([
       supabase.from('reviews').select('*, profiles(name, username)').eq('business_id', biz.id).order('created_at', { ascending: false }),
       supabase.from('profile_views').select('*').eq('business_id', biz.id).order('created_at', { ascending: false }).limit(100),
       supabase.from('businesses').select('*').eq('id', biz.id).single(),
       supabase.from('review_replies').select('*, profiles(name, username)').eq('business_id', biz.id).order('created_at', { ascending: true }),
+      supabase.from('business_activity_log').select('*, profiles(name, username)').eq('business_id', biz.id).order('created_at', { ascending: false }).limit(30),
     ])
     setReviews(revRes.data || [])
     setViews(viewRes.data || [])
     if (bizRes.data) setBiz(bizRes.data)
+    setActivityLog(activityRes.data || [])
 
     // Group replies by review_id
     const grouped = {}
@@ -187,6 +190,32 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
               <span style={{ fontWeight: 500 }}>{count} view{count !== 1 ? 's' : ''}</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* RECENT ACTIVITY — audit trail of every change to this listing */}
+      <h3 style={{ marginBottom: 12 }}>Recent activity</h3>
+      {activityLog.length === 0 ? (
+        <p className="muted" style={{ marginBottom: 20 }}>No changes have been made to your listing yet.</p>
+      ) : (
+        <div className="detail-rows" style={{ marginBottom: 20 }}>
+          {activityLog.map((a) => {
+            const actorLabel = a.actor_id === currentUser.id
+              ? 'You'
+              : (a.profiles?.username ? `@${a.profiles.username}` : 'BizCheck admin')
+            return (
+              <div className="detail-row" key={a.id}>
+                <span>
+                  <strong>{a.field_changed}</strong> changed by {actorLabel}
+                </span>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  {new Date(a.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {' '}
+                  {new Date(a.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -342,7 +371,7 @@ function BannedBusinessScreen({ business, currentUser, onBack }) {
       .eq('requested_by', currentUser.id)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
     setExistingRequest(data || null)
     setChecked(true)
   }

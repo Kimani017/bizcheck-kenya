@@ -92,7 +92,7 @@ export default function ReportForm({ onDone, prefill }) {
     })
 
     setSubmitting(false)
-    if (insertError) { setError('Something went wrong. Please try again.'); return }
+    if (insertError) { setError(insertError.message); return }
     alert('✓ Report submitted — our team will review within 24hrs')
     onDone()
   }
