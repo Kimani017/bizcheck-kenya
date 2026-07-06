@@ -300,7 +300,7 @@ function App() {
 
   function openB2BChat(targetBusiness = null) {
     setB2bTargetBusiness(targetBusiness)
-    navigate('b2bChat')
+    navigate('directory')
   }
 
   function goToReport(business = null) {
@@ -493,7 +493,7 @@ function App() {
 
       <div className="main-content">
         {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
-        {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} />}
+        {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} businessMode={businessMode} initialMarketSubtab={b2bTargetBusiness ? 'b2b' : 'browse'} initialB2BTarget={b2bTargetBusiness} />}
         {page === 'report' && <ReportForm onDone={() => navigate('home')} prefill={reportPrefill} />}
         {page === 'submit' && <SubmitBusiness currentUser={user} onDone={() => navigate('directory')} />}
         {page === 'admin' && <AdminDashboard onSelectBusiness={openBusiness} onSelectUser={openUserProfile} />}
@@ -502,7 +502,6 @@ function App() {
         {page === 'support' && <Support onBack={goBack} currentUser={user} />}
         {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
         {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} isAdmin={isAdmin} onBack={goBack} />}
-        {page === 'b2bChat' && businessMode && <B2BChat myBusiness={businessMode} initialTargetBusiness={b2bTargetBusiness} onBack={goBack} />}
         {page === 'b2bOversight' && isSuperadmin && <B2BOversight onBack={goBack} />}
         {page === 'bizProfile' && selectedBusiness && (
           <BusinessPublicProfile

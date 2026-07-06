@@ -35,17 +35,17 @@ export default function AccountChooser({ businesses, onChoosePersonal, onChooseB
             style={{ flex: 1, padding: '16px 12px', borderRadius: 12, border: '1.5px solid var(--border)', background: 'var(--surface-2)', cursor: 'pointer', textAlign: 'center' }}
           >
             <div style={{ fontSize: 28, marginBottom: 6 }}>👤</div>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>Personal account</div>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>Personal</div>
           </button>
           <div style={{ flex: 1, padding: '16px 12px', borderRadius: 12, border: '1.5px solid #1D9E75', background: '#E1F5EE', textAlign: 'center' }}>
             <div style={{ fontSize: 28, marginBottom: 6 }}>🏢</div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: '#085041' }}>Business account</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#085041' }}>Bizyangu</div>
           </div>
         </div>
 
         {businesses.length > 1 && (
           <div className="form-group">
-            <label style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>Which business?</label>
+            <label style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>Which business in Bizyangu?</label>
             <select
               value={selectedBiz?.id || ''}
               onChange={(e) => setSelectedBiz(businesses.find(b => b.id === e.target.value))}

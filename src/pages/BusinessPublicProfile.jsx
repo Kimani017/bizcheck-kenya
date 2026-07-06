@@ -123,9 +123,19 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
             {biz.location && <span className="muted">📍 {biz.location}</span>}
           </div>
         </div>
-        <span className={`badge ${biz.status === 'verified' ? 'badge-verified' : 'badge-danger'}`} style={{ fontSize: 13, padding: '6px 14px' }}>
-          {biz.status === 'verified' ? '✓ Verified' : '⚠ Flagged'}
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+          {businessMode && businessMode.id !== biz.id && onMessageBusiness && (
+            <button
+              onClick={() => onMessageBusiness(biz)}
+              style={{ background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              💬 B2B Message
+            </button>
+          )}
+          <span className={`badge ${biz.status === 'verified' ? 'badge-verified' : 'badge-danger'}`} style={{ fontSize: 13, padding: '6px 14px' }}>
+            {biz.status === 'verified' ? '✓ Verified' : '⚠ Flagged'}
+          </span>
+        </div>
       </div>
 
       {/* RATINGS SUMMARY */}
@@ -164,11 +174,6 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
       </div>
       <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
         <button className="link-btn report-link" style={{ margin: 0 }} onClick={() => onReport(biz)}>🚩 Report this seller</button>
-        {businessMode && businessMode.id !== biz.id && onMessageBusiness && (
-          <button className="link-btn" style={{ margin: 0, color: '#085041' }} onClick={() => onMessageBusiness(biz)}>
-            💬 Message this business
-          </button>
-        )}
         {!biz.owner_id && !claimSubmitted && !isAdmin && (
           <button className="link-btn" style={{ margin: 0, color: '#085041' }} onClick={() => setShowClaimForm(!showClaimForm)}>
             🏢 Is this your business? Claim it

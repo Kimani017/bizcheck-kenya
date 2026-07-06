@@ -40,8 +40,8 @@ export default function Settings({ theme, toggleTheme, onBack, onLogout, onOpenS
         >
           <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--hover-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>👤</div>
           <div>
-            <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-strong)' }}>Switch to personal account</div>
-            <div className="muted" style={{ fontSize: 13 }}>Currently managing: {businessMode.name}</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-strong)' }}>Switch to Personal</div>
+            <div className="muted" style={{ fontSize: 13 }}>Currently in Bizyangu: {businessMode.name}</div>
           </div>
         </button>
       )}
