@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
         BusinessShortCode: SHORTCODE,
         Password: password,
         Timestamp: timestamp,
-        TransactionType: 'CustomerBuyGoodsOnline',
+        TransactionType: 'CustomerPayBillOnline', // NOTE: switch to 'CustomerBuyGoodsOnline' once using your real Individual Till in production — the shared sandbox shortcode only supports Paybill-style testing
         Amount: Math.round(amount),
         PartyA: phone,
         PartyB: SHORTCODE,
