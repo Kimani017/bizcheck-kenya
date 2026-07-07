@@ -24,6 +24,7 @@ import B2BOversight from './pages/B2BOversight'
 import ReportTab from './pages/ReportTab'
 import UserActivity from './pages/UserActivity'
 import Notifications from './pages/Notifications'
+import Pricing from './pages/Pricing'
 import AdminApplicationForm from './pages/AdminApplicationForm'
 import EnterAdminCode from './pages/EnterAdminCode'
 import Settings from './pages/Settings'
@@ -523,10 +524,11 @@ function App() {
             onOpenB2B={() => openB2BChat()}
           />
         )}
+        {page === 'pricing' && <Pricing currentUser={user} businessMode={businessMode} onBack={goBack} />}
         {page === 'submit' && <SubmitBusiness currentUser={user} onDone={() => navigate('directory')} />}
         {page === 'admin' && <AdminDashboard onSelectBusiness={openBusiness} onSelectUser={openUserProfile} />}
         {page === 'adminProfiles' && <AdminProfiles onSelectBusiness={openBusiness} onSelectUser={openUserProfile} currentUser={user} />}
-        {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} onLogout={handleLogout} onOpenSupport={() => navigate('support')} businessMode={businessMode} onSwitchToPersonal={() => { setBusinessMode(null); navigate('home') }} />}
+        {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} onLogout={handleLogout} onOpenSupport={() => navigate('support')} onOpenPricing={() => navigate('pricing')} businessMode={businessMode} onSwitchToPersonal={() => { setBusinessMode(null); navigate('home') }} />}
         {page === 'support' && <Support onBack={goBack} currentUser={user} />}
         {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
         {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} isAdmin={isAdmin} onBack={goBack} />}

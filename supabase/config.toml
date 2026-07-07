@@ -42,3 +42,47 @@ entrypoint = "./functions/send-business-verified/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/send-business-verified/*.html" ]
+
+[functions.create-payment-checkout]
+enabled = true
+verify_jwt = false
+import_map = "./functions/create-payment-checkout/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/create-payment-checkout/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/create-payment-checkout/*.html" ]
+
+[functions.intasend-webhook]
+enabled = true
+verify_jwt = false
+import_map = "./functions/intasend-webhook/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/intasend-webhook/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/intasend-webhook/*.html" ]
+
+[functions.mpesa-stk-push]
+enabled = true
+verify_jwt = false
+import_map = "./functions/mpesa-stk-push/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/mpesa-stk-push/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/mpesa-stk-push/*.html" ]
+
+[functions.mpesa-callback]
+enabled = true
+verify_jwt = false
+import_map = "./functions/mpesa-callback/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/mpesa-callback/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/mpesa-callback/*.html" ]

@@ -1,4 +1,4 @@
-export default function Settings({ theme, toggleTheme, onBack, onLogout, onOpenSupport, businessMode, onSwitchToPersonal }) {
+export default function Settings({ theme, toggleTheme, onBack, onLogout, onOpenSupport, onOpenPricing, businessMode, onSwitchToPersonal }) {
   return (
     <div className="section" style={{ maxWidth: 560 }}>
       <button className="link-btn" onClick={onBack}>← Back</button>
@@ -45,6 +45,18 @@ export default function Settings({ theme, toggleTheme, onBack, onLogout, onOpenS
           </div>
         </button>
       )}
+
+      {/* PRICING & SUBSCRIPTION */}
+      <button
+        onClick={onOpenPricing}
+        style={{ width: '100%', textAlign: 'left', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12, cursor: 'pointer' }}
+      >
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--hover-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>💳</div>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-strong)' }}>{businessMode ? 'Business plans' : 'Pricing & subscription'}</div>
+          <div className="muted" style={{ fontSize: 13 }}>{businessMode ? 'Manage your business plan' : 'Buy search credits or subscribe'}</div>
+        </div>
+      </button>
 
       {/* SUPPORT */}
       <button

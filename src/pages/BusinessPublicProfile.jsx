@@ -126,6 +126,11 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </span>
             )}
+            {biz.plan_type === 'full_control' && biz.plan_status === 'active' && (
+              <span title="Full Control subscriber — premium business" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: '#9333EA', flexShrink: 0 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </span>
+            )}
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span className="badge badge-verified" style={{ fontSize: 12 }}>{biz.category}</span>
