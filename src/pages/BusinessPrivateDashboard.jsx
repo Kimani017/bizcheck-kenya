@@ -28,22 +28,28 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
   })
   const [saving, setSaving] = useState(false)
   const [activityLog, setActivityLog] = useState([])
+  const [scamReportsMade, setScamReportsMade] = useState([])
+  const [userReportsMade, setUserReportsMade] = useState([])
 
   useEffect(() => {
     loadData()
   }, [])
 
   async function loadData() {
-    const [revRes, viewRes, bizRes, replyRes, activityRes] = await Promise.all([
+    const [revRes, viewRes, bizRes, replyRes, activityRes, scamRepRes, userRepRes] = await Promise.all([
       supabase.from('reviews').select('*, profiles(name, username)').eq('business_id', biz.id).order('created_at', { ascending: false }),
       supabase.from('profile_views').select('*').eq('business_id', biz.id).order('created_at', { ascending: false }).limit(100),
       supabase.from('businesses').select('*').eq('id', biz.id).single(),
       supabase.from('review_replies').select('*, profiles(name, username)').eq('business_id', biz.id).order('created_at', { ascending: true }),
       supabase.from('business_activity_log').select('*, profiles(name, username)').eq('business_id', biz.id).order('created_at', { ascending: false }).limit(30),
+      supabase.from('reports').select('*').eq('reporter_id', currentUser.id).order('created_at', { ascending: false }),
+      supabase.from('user_reports').select('*').eq('reporter_id', currentUser.id).order('created_at', { ascending: false }),
     ])
     setReviews(revRes.data || [])
     setViews(viewRes.data || [])
     if (bizRes.data) setBiz(bizRes.data)
+    setScamReportsMade(scamRepRes.data || [])
+    setUserReportsMade(userRepRes.data || [])
     setActivityLog(activityRes.data || [])
 
     // Group replies by review_id
@@ -60,6 +66,20 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
     await supabase.from('businesses').update(form).eq('id', biz.id)
     setSaving(false)
     setEditing(false)
+    loadData()
+  }
+
+  async function cancelScamReport(id) {
+    if (!confirm('Request cancellation of this report? An admin will review your request.')) return
+    const { error } = await supabase.rpc('request_cancel_scam_report', { p_report_id: id })
+    if (error) { alert('Error: ' + error.message); return }
+    loadData()
+  }
+
+  async function cancelUserReport(id) {
+    if (!confirm('Request cancellation of this report? An admin will review your request.')) return
+    const { error } = await supabase.rpc('request_cancel_user_report', { p_report_id: id })
+    if (error) { alert('Error: ' + error.message); return }
     loadData()
   }
 
@@ -216,6 +236,47 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* REPORTS MADE — reports this owner has filed, with cancel option */}
+      <h3 style={{ marginBottom: 12 }}>Reports made</h3>
+      {scamReportsMade.length === 0 && userReportsMade.length === 0 ? (
+        <p className="muted" style={{ marginBottom: 20 }}>You haven't made any reports yet.</p>
+      ) : (
+        <div className="admin-list" style={{ marginBottom: 20 }}>
+          {scamReportsMade.map((r) => (
+            <div className="admin-row" key={`scam-${r.id}`}>
+              <div>
+                <strong>{r.business_name}</strong>
+                <span className="badge badge-pending" style={{ marginLeft: 8 }}>Scam report</span>
+                {r.cancel_status === 'requested' && <span className="badge badge-pending" style={{ marginLeft: 8 }}>Cancellation pending</span>}
+                {r.cancel_status === 'confirmed' && <span className="badge badge-danger" style={{ marginLeft: 8 }}>Cancelled</span>}
+                <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                  {r.scam_type?.replace('_', ' ')} · {new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+              </div>
+              {r.cancel_status === 'none' && (
+                <button className="btn-ghost-small" style={{ color: '#E24B4A' }} onClick={() => cancelScamReport(r.id)}>Cancel report</button>
+              )}
+            </div>
+          ))}
+          {userReportsMade.map((r) => (
+            <div className="admin-row" key={`user-${r.id}`}>
+              <div>
+                <strong>User report</strong>
+                <span className="badge badge-pending" style={{ marginLeft: 8 }}>{r.reason}</span>
+                {r.cancel_status === 'requested' && <span className="badge badge-pending" style={{ marginLeft: 8 }}>Cancellation pending</span>}
+                {r.cancel_status === 'confirmed' && <span className="badge badge-danger" style={{ marginLeft: 8 }}>Cancelled</span>}
+                <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                  {new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+              </div>
+              {r.cancel_status === 'none' && (
+                <button className="btn-ghost-small" style={{ color: '#E24B4A' }} onClick={() => cancelUserReport(r.id)}>Cancel report</button>
+              )}
+            </div>
+          ))}
         </div>
       )}
 

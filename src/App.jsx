@@ -21,6 +21,8 @@ import EditViaLink from './pages/EditViaLink'
 import AccountChooser from './pages/AccountChooser'
 import B2BChat from './pages/B2BChat'
 import B2BOversight from './pages/B2BOversight'
+import ReportTab from './pages/ReportTab'
+import UserActivity from './pages/UserActivity'
 import AdminApplicationForm from './pages/AdminApplicationForm'
 import EnterAdminCode from './pages/EnterAdminCode'
 import Settings from './pages/Settings'
@@ -428,9 +430,13 @@ function App() {
           <div className="nav-links nav-links-center">
             <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button>
             <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Market</button>
-            {isSuperadmin
-              ? <button className={page === 'b2bOversight' ? 'active' : ''} onClick={() => navigate('b2bOversight')}>B2B</button>
-              : <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report a User' : 'Report a Scammer'}</button>}
+            {isSuperadmin ? (
+              <button className={page === 'b2bOversight' ? 'active' : ''} onClick={() => navigate('b2bOversight')}>B2B</button>
+            ) : isAdmin ? (
+              <button className={page === 'userActivity' ? 'active' : ''} onClick={() => navigate('userActivity')}>User Activity</button>
+            ) : (
+              <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report' : 'Report a Scammer'}</button>
+            )}
             {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
             {businessMode ? (
               <button className={page === 'bizDashboard' ? 'active' : ''} onClick={() => { setSelectedBusiness(businessMode); navigate('bizDashboard', { business: businessMode }) }}>🏢 {businessMode.name}</button>
@@ -472,9 +478,13 @@ function App() {
             <div className="mobile-menu-links">
               <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button>
               <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Market</button>
-              {isSuperadmin
-              ? <button className={page === 'b2bOversight' ? 'active' : ''} onClick={() => navigate('b2bOversight')}>B2B</button>
-              : <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report a User' : 'Report a Scammer'}</button>}
+              {isSuperadmin ? (
+              <button className={page === 'b2bOversight' ? 'active' : ''} onClick={() => navigate('b2bOversight')}>B2B</button>
+            ) : isAdmin ? (
+              <button className={page === 'userActivity' ? 'active' : ''} onClick={() => navigate('userActivity')}>User Activity</button>
+            ) : (
+              <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report' : 'Report a Scammer'}</button>
+            )}
               {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
               {businessMode ? (
                 <button className={page === 'bizDashboard' ? 'active' : ''} onClick={() => { setSelectedBusiness(businessMode); navigate('bizDashboard', { business: businessMode }) }}>🏢 {businessMode.name}</button>
@@ -495,7 +505,12 @@ function App() {
       <div className="main-content">
         {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
         {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} businessMode={businessMode} initialMarketSubtab={b2bTargetBusiness ? 'b2b' : 'browse'} initialB2BTarget={b2bTargetBusiness} />}
-        {page === 'report' && <ReportForm onDone={() => navigate('home')} prefill={reportPrefill} />}
+        {page === 'report' && (
+          businessMode
+            ? <ReportTab currentUser={user} businessMode={businessMode} onMessageUser={openMessages} onDone={() => navigate('home')} />
+            : <ReportForm currentUser={user} onDone={() => navigate('home')} prefill={reportPrefill} />
+        )}
+        {page === 'userActivity' && isAdmin && <UserActivity onBack={null} />}
         {page === 'submit' && <SubmitBusiness currentUser={user} onDone={() => navigate('directory')} />}
         {page === 'admin' && <AdminDashboard onSelectBusiness={openBusiness} onSelectUser={openUserProfile} />}
         {page === 'adminProfiles' && <AdminProfiles onSelectBusiness={openBusiness} onSelectUser={openUserProfile} currentUser={user} />}

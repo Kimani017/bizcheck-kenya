@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { SkeletonList } from './Skeleton'
+import UserActivity from './UserActivity'
 
 const FLAG_THRESHOLD = 6
 const SCAM_THRESHOLD = 10
@@ -54,6 +55,31 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   }
 
   // Banning requires the superadmin's secret code unless you ARE the superadmin
+  async function sendBizcode(business) {
+    if (!business.owner_id) { alert('This business has no owner linked yet.'); return }
+
+    const { data: owner } = await supabase.from('profiles').select('email, name').eq('id', business.owner_id).single()
+    const email = business.owner_email || owner?.email
+    if (!email) { alert('No email found for this business owner.'); return }
+
+    const { data: bizcode, error: codeError } = await supabase.rpc('finalize_business_verification', { p_business_id: business.id })
+    if (codeError) { alert('Error generating bizcode: ' + codeError.message); return }
+
+    const { data: sessionData } = await supabase.auth.getSession()
+    try {
+      const res = await fetch('https://ubjndgyukfhngytfabnw.supabase.co/functions/v1/send-business-verified', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionData.session.access_token}` },
+        body: JSON.stringify({ email, name: business.owner_name || owner?.name, businessName: business.name, bizcode }),
+      })
+      if (!res.ok) throw new Error('Email failed')
+      alert(`✓ Bizcode generated and emailed to ${email}.`)
+    } catch (e) {
+      alert(`Bizcode generated, but the email failed to send. Share this code with the owner manually:\n\n${bizcode}`)
+    }
+    loadAll()
+  }
+
   async function banBusiness(businessId) {
     if (!isSuperadmin) {
       setBanCodeInput('')
@@ -175,7 +201,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
 
   // ── SUBMISSIONS ──
   async function approveSubmission(sub) {
-    const { data: existing } = await supabase.from('businesses').select('id').ilike('name', sub.name).single()
+    const { data: existing } = await supabase.from('businesses').select('id').ilike('name', sub.name).maybeSingle()
 
     const commonFields = {
       category: sub.category, description: sub.description, phone: sub.phone,
@@ -368,7 +394,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {(bizSubTab === 'verified' ? verifiedBiz : bizSubTab === 'flagged' ? flaggedBiz : scamBiz).map((b) => (
-              <BusinessAdminRow key={b.id} business={b} onSetStatus={setBusinessStatus} onBan={banBusiness} thresholds={{ FLAG_THRESHOLD, SCAM_THRESHOLD }} onSelectBusiness={onSelectBusiness} onSelectUser={onSelectUser} />
+              <BusinessAdminRow key={b.id} business={b} onSetStatus={setBusinessStatus} onBan={banBusiness} onSendBizcode={sendBizcode} thresholds={{ FLAG_THRESHOLD, SCAM_THRESHOLD }} onSelectBusiness={onSelectBusiness} onSelectUser={onSelectUser} />
             ))}
             {(bizSubTab === 'verified' ? verifiedBiz : bizSubTab === 'flagged' ? flaggedBiz : scamBiz).length === 0 && (
               <p className="muted">No businesses in this category.</p>
@@ -385,12 +411,15 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
               ['pending', `Pending Reports (${pendingReports.length})`],
               ['reported', `Businesses Reported (${reportedBusinesses.length})`],
               ['log', `Report Log (${reports.length})`],
+              ...(isSuperadmin ? [['made', 'Reports made']] : []),
             ].map(([id, label]) => (
               <button key={id} className={`filter-btn ${reportSubTab === id ? 'on' : ''}`} onClick={() => setReportSubTab(id)}>
                 {label}
               </button>
             ))}
           </div>
+
+          {reportSubTab === 'made' && isSuperadmin && <UserActivity onBack={null} />}
 
           {/* PENDING REPORTS */}
           {reportSubTab === 'pending' && (
@@ -703,7 +732,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
 }
 
 // ── Business row in "All Businesses" tab ──
-function BusinessAdminRow({ business: b, onSetStatus, onBan, thresholds, onSelectBusiness, onSelectUser }) {
+function BusinessAdminRow({ business: b, onSetStatus, onBan, onSendBizcode, thresholds, onSelectBusiness, onSelectUser }) {
   const needsFlagReview = b.unique_reporter_count >= thresholds.FLAG_THRESHOLD && b.status === 'verified'
   const needsScamReview = b.unique_reporter_count >= thresholds.SCAM_THRESHOLD && b.status !== 'scam'
 
@@ -739,6 +768,9 @@ function BusinessAdminRow({ business: b, onSetStatus, onBan, thresholds, onSelec
         {!needsScamReview && needsFlagReview && <div style={{ color: '#854D0E', fontSize: 12, fontWeight: 700, marginTop: 4 }}>⚠ Reached flag threshold ({thresholds.FLAG_THRESHOLD}+ reporters)</div>}
       </div>
       <div className="admin-actions">
+        {b.status === 'verified' && !b.bizcode && (
+          <button className="btn-small" style={{ background: '#0D6E82' }} onClick={() => onSendBizcode(b)}>🔑 Send bizcode</button>
+        )}
         {b.status !== 'verified' && <button className="btn-ghost-small" onClick={() => onSetStatus(b.id, 'verified')}>Verify</button>}
         {b.status !== 'flagged' && <button className="btn-ghost-small" onClick={() => onSetStatus(b.id, 'flagged')}>Flag</button>}
         {b.status !== 'scam' && <button className="btn-small" style={{ background: '#A32D2D' }} onClick={() => onSetStatus(b.id, 'scam')}>Mark scam</button>}

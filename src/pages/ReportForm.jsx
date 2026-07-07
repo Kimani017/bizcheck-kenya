@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../supabase'
 
-export default function ReportForm({ onDone, prefill }) {
+export default function ReportForm({ onDone, prefill, currentUser }) {
   const [step, setStep] = useState(prefill ? 'form' : 'search') // search → select → form
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
@@ -89,6 +89,7 @@ export default function ReportForm({ onDone, prefill }) {
       description: form.description || null,
       amount_lost: form.amount_lost ? parseFloat(form.amount_lost) : null,
       reporter_phone: form.reporter_phone || null,
+      reporter_id: currentUser?.id || null,
     })
 
     setSubmitting(false)
