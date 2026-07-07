@@ -23,6 +23,7 @@ import B2BChat from './pages/B2BChat'
 import B2BOversight from './pages/B2BOversight'
 import ReportTab from './pages/ReportTab'
 import UserActivity from './pages/UserActivity'
+import Notifications from './pages/Notifications'
 import AdminApplicationForm from './pages/AdminApplicationForm'
 import EnterAdminCode from './pages/EnterAdminCode'
 import Settings from './pages/Settings'
@@ -446,6 +447,7 @@ function App() {
               <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>
             )}
             <button className={page === 'messages' ? 'active' : ''} onClick={() => openMessages()}>Messages</button>
+            <button className={page === 'notifications' ? 'active' : ''} onClick={() => navigate('notifications')}>🔔</button>
           </div>
 
           <div className="nav-links nav-links-right">
@@ -494,6 +496,7 @@ function App() {
                 <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>
               )}
               <button className={page === 'messages' ? 'active' : ''} onClick={() => openMessages()}>Messages</button>
+            <button className={page === 'notifications' ? 'active' : ''} onClick={() => navigate('notifications')}>🔔</button>
               <div className="mobile-menu-divider" />
               <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
               {isSuperadmin && <button className={page === 'pleads' ? 'active' : ''} onClick={() => navigate('pleads')}>Pleads</button>}
@@ -511,6 +514,15 @@ function App() {
             : <ReportForm currentUser={user} onDone={() => navigate('home')} prefill={reportPrefill} />
         )}
         {page === 'userActivity' && isAdmin && <UserActivity onBack={null} />}
+        {page === 'notifications' && (
+          <Notifications
+            currentUser={user}
+            businessMode={businessMode}
+            onBack={goBack}
+            onOpenMessages={() => openMessages()}
+            onOpenB2B={() => openB2BChat()}
+          />
+        )}
         {page === 'submit' && <SubmitBusiness currentUser={user} onDone={() => navigate('directory')} />}
         {page === 'admin' && <AdminDashboard onSelectBusiness={openBusiness} onSelectUser={openUserProfile} />}
         {page === 'adminProfiles' && <AdminProfiles onSelectBusiness={openBusiness} onSelectUser={openUserProfile} currentUser={user} />}

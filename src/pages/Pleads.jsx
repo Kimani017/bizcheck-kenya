@@ -9,6 +9,9 @@ export default function Pleads({ onBack, onSelectBusiness }) {
   const [banCode, setBanCode] = useState(null)
   const [showCode, setShowCode] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+  const [announceTitle, setAnnounceTitle] = useState('')
+  const [announceBody, setAnnounceBody] = useState('')
+  const [posting, setPosting] = useState(false)
 
   // Lock screen — only the person who knows the superadmin's own Admin ID can enter
   const [unlocked, setUnlocked] = useState(false)
@@ -116,6 +119,17 @@ export default function Pleads({ onBack, onSelectBusiness }) {
     setShowCode(true)
   }
 
+  async function postAnnouncement() {
+    if (!announceTitle.trim() || !announceBody.trim()) { alert('Please fill in both a title and a message.'); return }
+    setPosting(true)
+    const { error } = await supabase.from('announcements').insert({ title: announceTitle.trim(), body: announceBody.trim() })
+    setPosting(false)
+    if (error) { alert('Error: ' + error.message); return }
+    setAnnounceTitle('')
+    setAnnounceBody('')
+    alert('✓ Announcement posted — everyone will see it in their Notifications.')
+  }
+
   if (loading) return <div className="section" style={{ maxWidth: 820 }}><h2 style={{ marginBottom: 20 }}>Pleads</h2><SkeletonList count={5} /></div>
 
   const pending = requests.filter(r => r.status === 'pending')
@@ -147,6 +161,28 @@ export default function Pleads({ onBack, onSelectBusiness }) {
             <button className="btn-ghost-small" onClick={regenerateCode} disabled={regenerating}>{regenerating ? 'Generating…' : '🔄 Regenerate'}</button>
           </div>
         </div>
+      </div>
+
+      {/* ANNOUNCEMENT COMPOSER */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px', marginBottom: 24 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-strong)', marginBottom: 4 }}>📢 Post an app announcement</div>
+        <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>Everyone will see this in their Notifications tab.</div>
+        <input
+          value={announceTitle}
+          onChange={(e) => setAnnounceTitle(e.target.value)}
+          placeholder="Title"
+          style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface-2)', color: 'var(--text)', marginBottom: 10, boxSizing: 'border-box' }}
+        />
+        <textarea
+          value={announceBody}
+          onChange={(e) => setAnnounceBody(e.target.value)}
+          rows={3}
+          placeholder="Message"
+          style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface-2)', color: 'var(--text)', marginBottom: 10, boxSizing: 'border-box', resize: 'vertical' }}
+        />
+        <button className="btn-primary" style={{ width: 'auto', padding: '10px 24px' }} onClick={postAnnouncement} disabled={posting}>
+          {posting ? 'Posting…' : 'Post announcement'}
+        </button>
       </div>
 
       {/* PENDING PLEADS */}

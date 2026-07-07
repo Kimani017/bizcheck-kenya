@@ -9,6 +9,7 @@ export default function Auth({ onAuthed, initialMode }) {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [phone, setPhone] = useState('')
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -45,7 +46,7 @@ export default function Auth({ onAuthed, initialMode }) {
     setUsername(cleaned)
     if (cleaned.length < 3) { setUsernameAvailable(null); return }
     setCheckingUsername(true)
-    const { data } = await supabase.from('profiles').select('id').ilike('username', cleaned).single()
+    const { data } = await supabase.from('profiles').select('id').ilike('username', cleaned).maybeSingle()
     setCheckingUsername(false)
     setUsernameAvailable(!data)
   }
@@ -55,7 +56,7 @@ export default function Auth({ onAuthed, initialMode }) {
     if (!username.trim() || username.length < 3) { setError('Please enter a username of at least 3 characters.'); return }
     if (usernameAvailable === false) { setError('That username is taken. Please choose another.'); return }
     if (!phone.trim()) { setError('Please enter your phone number.'); return }
-    if (!email.trim() && !phone.trim()) { setError('Please enter at least an email or phone number.'); return }
+    if (!email.trim()) { setError('Please enter your email address.'); return }
     if (!password) { setError('Please enter a password.'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
     if (password !== confirmPassword) { setError('Passwords do not match.'); return }
@@ -80,6 +81,7 @@ export default function Auth({ onAuthed, initialMode }) {
         name,
         phone: phone || null,
         username,
+        notifications_enabled: notificationsEnabled,
       })
     }
 
@@ -178,14 +180,14 @@ export default function Auth({ onAuthed, initialMode }) {
           </div>
 
           <div className="form-group">
-            <label>Phone number *</label>
+            <label>Phone number (optional)</label>
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0712 345 678" onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} />
           </div>
         </>
       )}
 
       <div className="form-group">
-        <label>Email address (optional)</label>
+        <label>Email address *</label>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} />
       </div>
 
@@ -206,6 +208,21 @@ export default function Auth({ onAuthed, initialMode }) {
             <input type={showConfirm ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter your password" onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} />
             <button type="button" className="toggle-pw" onClick={() => setShowConfirm(!showConfirm)}>{showConfirm ? 'Hide' : 'Show'}</button>
           </div>
+        </div>
+      )}
+
+      {mode === 'signup' && (
+        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="checkbox"
+            id="notif-opt-in"
+            checked={notificationsEnabled}
+            onChange={(e) => setNotificationsEnabled(e.target.checked)}
+            style={{ width: 16, height: 16 }}
+          />
+          <label htmlFor="notif-opt-in" style={{ margin: 0, fontSize: 13, cursor: 'pointer' }}>
+            🔔 Notify me about violations, unread messages, and app updates
+          </label>
         </div>
       )}
 
