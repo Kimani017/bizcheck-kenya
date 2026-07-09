@@ -53,6 +53,7 @@ const THEMES = {
 
 export default function UserProfile({ profileUserId, currentUser, isAdmin, onBack, onSelectBusiness, onMessage }) {
   const [activeTab, setActiveTab] = useState('business')
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [profile, setProfile] = useState(null)
   const [businesses, setBusinesses] = useState([])
   const [reviews, setReviews] = useState([])
@@ -60,6 +61,23 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
   const [viewedBusinesses, setViewedBusinesses] = useState([])
   const [loading, setLoading] = useState(true)
   const [showBusinessForm, setShowBusinessForm] = useState(false)
+
+  async function uploadAvatar(file) {
+    setUploadingAvatar(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `${currentUser.id}/avatar-${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file)
+      if (uploadError) throw uploadError
+      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+      const { error: updateError } = await supabase.from('profiles').update({ avatar_url: urlData.publicUrl }).eq('id', currentUser.id)
+      if (updateError) throw updateError
+      loadAll()
+    } catch (e) {
+      alert('Error uploading picture: ' + e.message)
+    }
+    setUploadingAvatar(false)
+  }
 
   const isOwner = currentUser?.id === profileUserId
   const canSeePrivate = isOwner || isAdmin
@@ -154,8 +172,20 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
         {/* Avatar + name */}
         <div style={{ padding: '8px 24px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-            <div style={{ width: 70, height: 70, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: '3px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: 'var(--surface)', flexShrink: 0, backdropFilter: 'blur(4px)' }}>
-              {initial}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              {profile.avatar_url ? (
+                <img src={profile.avatar_url} alt="" style={{ width: 70, height: 70, borderRadius: '50%', objectFit: 'cover', border: '3px solid rgba(255,255,255,0.4)', display: 'block' }} />
+              ) : (
+                <div style={{ width: 70, height: 70, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: '3px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: 'var(--surface)', backdropFilter: 'blur(4px)' }}>
+                  {initial}
+                </div>
+              )}
+              {isOwner && (
+                <label style={{ position: 'absolute', bottom: -2, right: -2, width: 24, height: 24, borderRadius: '50%', background: '#1D9E75', border: '2px solid var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 11 }}>
+                  📷
+                  <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingAvatar} onChange={(e) => e.target.files[0] && uploadAvatar(e.target.files[0])} />
+                </label>
+              )}
             </div>
             <div>
               <div style={{ color: 'var(--surface)', fontSize: 20, fontWeight: 700, marginBottom: 3, display: 'flex', alignItems: 'center' }}>
