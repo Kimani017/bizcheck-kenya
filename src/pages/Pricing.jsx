@@ -5,6 +5,7 @@ export default function Pricing({ currentUser, businessMode, onBack }) {
   const [loadingPlan, setLoadingPlan] = useState(null)
   const [phone, setPhone] = useState('')
   const [promptSentFor, setPromptSentFor] = useState(null)
+  const [bizCreditQty, setBizCreditQty] = useState(10)
 
   async function startCheckout({ paymentType, amount, billingCycle = null, businessId = null, label }) {
     if (!phone.trim()) { alert('Please enter your M-Pesa phone number first (e.g. 0712345678).'); return }
@@ -85,7 +86,7 @@ export default function Pricing({ currentUser, businessMode, onBack }) {
             <div style={cardStyle}>
               <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Search Credits</div>
               <div style={{ fontSize: 24, fontWeight: 700, color: '#1D9E75' }}>Ksh 27</div>
-              <p className="muted" style={{ fontSize: 13 }}>5 business searches. No subscription needed.</p>
+              <p className="muted" style={{ fontSize: 13 }}>5 credits to use across BizCheck. No subscription needed.</p>
               <button style={btnStyle(loadingPlan)} disabled={!!loadingPlan} onClick={() => startCheckout({ paymentType: 'search_credits', amount: 27 })}>
                 {loadingPlan === 'search_credits' ? 'Starting…' : 'Buy credits'}
               </button>
@@ -130,6 +131,29 @@ export default function Pricing({ currentUser, businessMode, onBack }) {
               <button style={btnStyle(loadingPlan)} disabled={!!loadingPlan} onClick={() => startCheckout({ paymentType: 'business_listing_only', amount: 227, businessId: businessMode.id })}>
                 {loadingPlan === 'business_listing_only' ? 'Starting…' : 'Choose Listing Only'}
               </button>
+            </div>
+
+            <div style={cardStyle}>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>⚡ Business Credits</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#1D9E75' }}>
+                Ksh {Math.round(Math.max(10, bizCreditQty) * 3.7)}
+              </div>
+              <p className="muted" style={{ fontSize: 13 }}>From Ksh 37 for 10 credits. Choose how many you want (minimum 10).</p>
+              <input
+                type="number"
+                min={10}
+                value={bizCreditQty}
+                onChange={(e) => setBizCreditQty(parseInt(e.target.value) || 10)}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface-2)', color: 'var(--text)', boxSizing: 'border-box', marginTop: 8 }}
+              />
+              <button
+                style={btnStyle(loadingPlan)}
+                disabled={!!loadingPlan || bizCreditQty < 10}
+                onClick={() => startCheckout({ paymentType: 'business_credits', amount: Math.round(Math.max(10, bizCreditQty) * 3.7), businessId: businessMode.id, label: `${bizCreditQty} business credits` })}
+              >
+                {loadingPlan === 'business_credits' ? 'Starting…' : `Buy ${Math.max(10, bizCreditQty)} credits`}
+              </button>
+              {bizCreditQty < 10 && <p style={{ color: '#A32D2D', fontSize: 12, marginTop: 6 }}>Minimum purchase is 10 credits (Ksh 37).</p>}
             </div>
           </div>
         </>

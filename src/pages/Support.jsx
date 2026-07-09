@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
+import { chargeUserCredits, chargeBusinessCredits } from './CreditGate'
 
 // Simple FAQ knowledge base — bot matches keywords and replies instantly.
 // No AI API needed, so it's free and always available, even when admin is offline.
@@ -141,7 +142,7 @@ function findBotReply(message) {
 
 const FALLBACK_REPLY = "Thanks for reaching out! I couldn't find an instant answer for that, but I've flagged your message for our team — we usually reply within 24hrs. In the meantime, you can ask me about: listing a business, reporting a scam, trust scores, or account help. 💬"
 
-export default function Support({ onBack, currentUser }) {
+export default function Support({ onBack, currentUser, businessMode, onInsufficientCredits }) {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
@@ -185,6 +186,17 @@ export default function Support({ onBack, currentUser }) {
 
   async function sendMessage() {
     if (!text.trim()) return
+
+    // Messaging the admin team costs 1 credit (user or business pool)
+    const charge = businessMode
+      ? await chargeBusinessCredits(businessMode.id, 'message_admin', 1)
+      : await chargeUserCredits('message_admin', 1)
+    if (!charge.ok) {
+      if (charge.insufficientCredits && onInsufficientCredits) { onInsufficientCredits(); return }
+      if (charge.insufficientCredits) { alert('You are out of credits.'); return }
+      alert('Error: ' + charge.error); return
+    }
+
     const messageText = text.trim()
     setSending(true)
     setText('')

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
+import { chargeBusinessCredits } from './CreditGate'
 
-export default function B2BChat({ myBusiness, initialTargetBusiness, onBack }) {
+export default function B2BChat({ myBusiness, initialTargetBusiness, onBack, onInsufficientCredits }) {
   const [threads, setThreads] = useState([])
   const [activeThread, setActiveThread] = useState(null) // { business, otherBusinessId }
   const [messages, setMessages] = useState([])
@@ -73,6 +74,14 @@ export default function B2BChat({ myBusiness, initialTargetBusiness, onBack }) {
 
   async function send() {
     if (!text.trim() || !activeThread) return
+
+    const charge = await chargeBusinessCredits(myBusiness.id, 'b2b_message', 0.25)
+    if (!charge.ok) {
+      if (charge.insufficientCredits && onInsufficientCredits) { onInsufficientCredits(); return }
+      if (charge.insufficientCredits) { alert('Your business is out of credits.'); return }
+      alert('Error: ' + charge.error); return
+    }
+
     setSending(true)
     const { error } = await supabase.from('b2b_messages').insert({
       sender_business_id: myBusiness.id,

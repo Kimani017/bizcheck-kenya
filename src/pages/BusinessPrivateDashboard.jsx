@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import ReportUserModal from './ReportUserModal'
+import { chargeBusinessCredits } from './CreditGate'
 
 function StarDisplay({ rating, size = 14 }) {
   return (
@@ -12,7 +13,7 @@ function StarDisplay({ rating, size = 14 }) {
   )
 }
 
-export default function BusinessPrivateDashboard({ business, onBack, currentUser }) {
+export default function BusinessPrivateDashboard({ business, onBack, currentUser, onInsufficientCredits, onOpenPricing }) {
   const [biz, setBiz] = useState(business)
   const [reviews, setReviews] = useState([])
   const [replies, setReplies] = useState({}) // { review_id: [replies] }
@@ -30,10 +31,52 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
   const [activityLog, setActivityLog] = useState([])
   const [scamReportsMade, setScamReportsMade] = useState([])
   const [userReportsMade, setUserReportsMade] = useState([])
+  const [statsUnlocked, setStatsUnlocked] = useState(false)
+  const [checkingStats, setCheckingStats] = useState(true)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   useEffect(() => {
     loadData()
+    unlockStats()
   }, [])
+
+  async function unlockStats() {
+    setCheckingStats(true)
+    const isFullControl = business.plan_type === 'full_control' && business.plan_status === 'active'
+    if (isFullControl) {
+      setStatsUnlocked(true)
+      setCheckingStats(false)
+      return
+    }
+    const charge = await chargeBusinessCredits(business.id, 'view_profile_views', 0.75)
+    if (charge.ok) {
+      setStatsUnlocked(true)
+    } else if (charge.insufficientCredits) {
+      setStatsUnlocked(false)
+    }
+    setCheckingStats(false)
+  }
+
+  async function uploadPhoto(file) {
+    setUploadingPhoto(true)
+    const charge = await chargeBusinessCredits(biz.id, 'upload_photo', 0.25)
+    if (!charge.ok) {
+      setUploadingPhoto(false)
+      if (charge.insufficientCredits) { onInsufficientCredits?.(); return }
+      alert('Error: ' + charge.error)
+      return
+    }
+
+    const ext = file.name.split('.').pop()
+    const path = `${currentUser.id}/photo-${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage.from('business-photos').upload(path, file)
+    if (uploadError) { setUploadingPhoto(false); alert('Upload error: ' + uploadError.message); return }
+
+    const { data: urlData } = supabase.storage.from('business-photos').getPublicUrl(path)
+    await supabase.from('businesses').update({ photo_url: urlData.publicUrl }).eq('id', biz.id)
+    setUploadingPhoto(false)
+    loadData()
+  }
 
   async function loadData() {
     const [revRes, viewRes, bizRes, replyRes, activityRes, scamRepRes, userRepRes] = await Promise.all([
@@ -103,13 +146,39 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
       <button className="link-btn" onClick={onBack}>← Back</button>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h2 style={{ fontSize: 22, marginBottom: 4 }}>🏢 {biz.name}</h2>
-          <span className="muted">Private business dashboard</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
+            {biz.photo_url ? (
+              <img src={biz.photo_url} alt={biz.name} style={{ width: 56, height: 56, borderRadius: 12, objectFit: 'cover' }} />
+            ) : (
+              <div style={{ width: 56, height: 56, borderRadius: 12, background: 'var(--hover-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🏢</div>
+            )}
+            <label style={{ position: 'absolute', bottom: -4, right: -4, width: 22, height: 22, borderRadius: '50%', background: '#1D9E75', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 11 }}>
+              📷
+              <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingPhoto} onChange={(e) => e.target.files[0] && uploadPhoto(e.target.files[0])} />
+            </label>
+          </div>
+          <div>
+            <h2 style={{ fontSize: 22, marginBottom: 4 }}>{biz.name}</h2>
+            <span className="muted">Private business dashboard</span>
+          </div>
         </div>
         <button className="btn-small" onClick={() => setEditing(!editing)}>
           {editing ? 'Cancel' : '✏️ Edit profile'}
         </button>
+      </div>
+
+      {/* AVAILABLE CREDITS */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Available credits</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#1D9E75' }}>
+            {biz.plan_type === 'full_control' && biz.plan_status === 'active' ? '🟣 Unlimited (Full Control)' : `${biz.credits ?? 0} credits`}
+          </div>
+        </div>
+        {!(biz.plan_type === 'full_control' && biz.plan_status === 'active') && (
+          <button className="btn-small" onClick={onOpenPricing}>Buy more credits</button>
+        )}
       </div>
 
       {/* EDIT FORM */}
@@ -159,32 +228,43 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
       )}
 
       {/* STATS OVERVIEW */}
-      <div className="dashboard-stats">
-        <div className="dashboard-stat">
-          <div className="dashboard-stat-num">{profileViews + cardClicks}</div>
-          <div className="dashboard-stat-label">Total views</div>
+      {checkingStats ? (
+        <p className="muted" style={{ marginBottom: 20 }}>Loading stats…</p>
+      ) : !statsUnlocked ? (
+        <div style={{ textAlign: 'center', padding: '30px 20px', background: 'var(--surface)', border: '1.5px dashed var(--border)', borderRadius: 14, marginBottom: 20 }}>
+          <div style={{ fontSize: 36, marginBottom: 10 }}>🔒</div>
+          <h4 style={{ marginBottom: 6 }}>Unlock your business stats</h4>
+          <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>You don't have enough credits to view your business stats right now. Top up to see your views, ratings, and trust score.</p>
+          <button className="btn-primary" style={{ width: 'auto', padding: '10px 24px' }} onClick={onOpenPricing}>Buy credits →</button>
         </div>
-        <div className="dashboard-stat">
-          <div className="dashboard-stat-num">{profileViews}</div>
-          <div className="dashboard-stat-label">Profile views</div>
+      ) : (
+        <div className="dashboard-stats">
+          <div className="dashboard-stat">
+            <div className="dashboard-stat-num">{profileViews + cardClicks}</div>
+            <div className="dashboard-stat-label">Total views</div>
+          </div>
+          <div className="dashboard-stat">
+            <div className="dashboard-stat-num">{profileViews}</div>
+            <div className="dashboard-stat-label">Profile views</div>
+          </div>
+          <div className="dashboard-stat">
+            <div className="dashboard-stat-num">{cardClicks}</div>
+            <div className="dashboard-stat-label">Card clicks</div>
+          </div>
+          <div className="dashboard-stat">
+            <div className="dashboard-stat-num" style={{ color: '#F5A623' }}>{biz.avg_rating > 0 ? biz.avg_rating.toFixed(1) : '—'}</div>
+            <div className="dashboard-stat-label">Avg rating</div>
+          </div>
+          <div className="dashboard-stat">
+            <div className="dashboard-stat-num" style={{ color: trustColor }}>{biz.trust_score}%</div>
+            <div className="dashboard-stat-label">Trust score</div>
+          </div>
+          <div className="dashboard-stat">
+            <div className="dashboard-stat-num">{biz.review_count}</div>
+            <div className="dashboard-stat-label">Reviews</div>
+          </div>
         </div>
-        <div className="dashboard-stat">
-          <div className="dashboard-stat-num">{cardClicks}</div>
-          <div className="dashboard-stat-label">Card clicks</div>
-        </div>
-        <div className="dashboard-stat">
-          <div className="dashboard-stat-num" style={{ color: '#F5A623' }}>{biz.avg_rating > 0 ? biz.avg_rating.toFixed(1) : '—'}</div>
-          <div className="dashboard-stat-label">Avg rating</div>
-        </div>
-        <div className="dashboard-stat">
-          <div className="dashboard-stat-num" style={{ color: trustColor }}>{biz.trust_score}%</div>
-          <div className="dashboard-stat-label">Trust score</div>
-        </div>
-        <div className="dashboard-stat">
-          <div className="dashboard-stat-num">{biz.review_count}</div>
-          <div className="dashboard-stat-label">Reviews</div>
-        </div>
-      </div>
+      )}
 
       {/* PRIVATE BUSINESS DETAILS */}
       <h3 style={{ marginBottom: 12, marginTop: 24 }}>Business details (private)</h3>
@@ -294,6 +374,7 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
               currentUser={currentUser}
               businessId={biz.id}
               onReplyPosted={loadData}
+              onInsufficientCredits={onInsufficientCredits}
             />
           ))}
         </div>
@@ -303,7 +384,7 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
 }
 
 // ── REVIEW CARD WITH REPLY THREAD (owner replies from here directly) ──
-function ReviewWithThread({ review, existingReplies, currentUser, businessId, onReplyPosted }) {
+function ReviewWithThread({ review, existingReplies, currentUser, businessId, onReplyPosted, onInsufficientCredits }) {
   const [showReplyBox, setShowReplyBox] = useState(false)
   const [message, setMessage] = useState('')
   const [posting, setPosting] = useState(false)
@@ -313,6 +394,15 @@ function ReviewWithThread({ review, existingReplies, currentUser, businessId, on
   async function postReply() {
     if (!message.trim()) return
     setPosting(true)
+
+    const charge = await chargeBusinessCredits(businessId, 'reply_to_review', 0.25)
+    if (!charge.ok) {
+      setPosting(false)
+      if (charge.insufficientCredits) { onInsufficientCredits?.(); return }
+      alert('Error: ' + charge.error)
+      return
+    }
+
     const { error } = await supabase.from('review_replies').insert({
       review_id: review.id,
       business_id: businessId,
@@ -409,6 +499,7 @@ function ReviewWithThread({ review, existingReplies, currentUser, businessId, on
           businessId={businessId}
           currentUser={currentUser}
           onClose={() => setShowReportModal(false)}
+          onInsufficientCredits={onInsufficientCredits}
         />
       )}
     </div>

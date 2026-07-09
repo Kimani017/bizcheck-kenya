@@ -3,10 +3,11 @@ import { supabase } from '../supabase'
 import { BusinessCard } from './Home'
 import { SkeletonGrid } from './Skeleton'
 import B2BChat from './B2BChat'
+import { chargeBusinessCredits } from './CreditGate'
 
 const CATEGORIES = ['All', 'Electronics', 'Fashion', 'Food', 'Phones', 'Home', 'Beauty', 'Other']
 
-export default function Directory({ onSelectBusiness, goToSubmit, businessMode, initialMarketSubtab, initialB2BTarget }) {
+export default function Directory({ onSelectBusiness, goToSubmit, businessMode, initialMarketSubtab, initialB2BTarget, onInsufficientCredits }) {
   const [businesses, setBusinesses] = useState([])
   const [activeCat, setActiveCat] = useState('All')
   const [loading, setLoading] = useState(true)
@@ -49,12 +50,12 @@ export default function Directory({ onSelectBusiness, goToSubmit, businessMode, 
 
       {/* DO BIZ — search for a business to message */}
       {businessMode && marketSubtab === 'doBiz' && (
-        <DoBizSearch myBusiness={businessMode} onSelectBusiness={onSelectBusiness} />
+        <DoBizSearch myBusiness={businessMode} onSelectBusiness={onSelectBusiness} onInsufficientCredits={onInsufficientCredits} />
       )}
 
       {/* B2B MESSAGES — embedded conversation list + chat */}
       {businessMode && marketSubtab === 'b2b' && (
-        <B2BChat myBusiness={businessMode} initialTargetBusiness={initialB2BTarget} onBack={() => setMarketSubtab('browse')} />
+        <B2BChat myBusiness={businessMode} initialTargetBusiness={initialB2BTarget} onBack={() => setMarketSubtab('browse')} onInsufficientCredits={onInsufficientCredits} />
       )}
 
       {/* NORMAL BROWSE GRID */}
@@ -89,7 +90,7 @@ export default function Directory({ onSelectBusiness, goToSubmit, businessMode, 
 }
 
 // ── DO BIZ — search a business, click its card to message it ──
-function DoBizSearch({ myBusiness, onSelectBusiness }) {
+function DoBizSearch({ myBusiness, onSelectBusiness, onInsufficientCredits }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [searching, setSearching] = useState(false)
@@ -105,6 +106,15 @@ function DoBizSearch({ myBusiness, onSelectBusiness }) {
 
   async function search(q) {
     setSearching(true)
+
+    const charge = await chargeBusinessCredits(myBusiness.id, 'search_business', 0.5)
+    if (!charge.ok) {
+      setSearching(false)
+      if (charge.insufficientCredits) { onInsufficientCredits?.(); return }
+      alert('Error: ' + charge.error)
+      return
+    }
+
     const { data } = await supabase
       .from('businesses')
       .select('*')

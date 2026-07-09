@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import { IdentityLine } from './Identity'
 import { SkeletonList } from './Skeleton'
 import ReportUserModal from './ReportUserModal'
+import { chargeUserCredits, chargeBusinessCredits } from './CreditGate'
 
 function linkify(text) {
   const parts = text.split(/(https?:\/\/[^\s]+)/g)
@@ -13,7 +14,7 @@ function linkify(text) {
   )
 }
 
-export default function Messages({ currentUser, initialTargetId, isAdmin, onBack }) {
+export default function Messages({ currentUser, initialTargetId, isAdmin, businessMode, onBack, onInsufficientCredits }) {
   const [threads, setThreads] = useState([])
   const [activeThread, setActiveThread] = useState(null) // { profile, otherUserId }
   const [messages, setMessages] = useState([])
@@ -95,6 +96,27 @@ export default function Messages({ currentUser, initialTargetId, isAdmin, onBack
 
   async function send() {
     if (!text.trim() || !activeThread) return
+
+    // Credit charge: business mode pays 0.25 to message a user; personal
+    // users pay 1 to message admin, 0.5 to message a business owner,
+    // 0.1 to message a regular user. Subscribers/Full Control skip inside.
+    let charge
+    if (businessMode) {
+      charge = await chargeBusinessCredits(businessMode.id, 'message_user', 0.25)
+    } else if (['admin', 'superadmin'].includes(activeThread.profile?.role)) {
+      charge = await chargeUserCredits('message_admin', 1)
+    } else {
+      const { data: ownedBiz } = await supabase.from('businesses').select('id').eq('owner_id', activeThread.otherUserId).eq('status', 'verified').limit(1)
+      charge = ownedBiz && ownedBiz.length > 0
+        ? await chargeUserCredits('message_business', 0.5)
+        : await chargeUserCredits('message_user', 0.1)
+    }
+    if (!charge.ok) {
+      if (charge.insufficientCredits && onInsufficientCredits) { onInsufficientCredits(); return }
+      if (charge.insufficientCredits) { alert('You are out of credits.'); return }
+      alert('Error: ' + charge.error); return
+    }
+
     setSending(true)
     const { error } = await supabase.from('direct_messages').insert({
       sender_id: currentUser.id,

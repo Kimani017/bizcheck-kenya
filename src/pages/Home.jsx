@@ -154,10 +154,20 @@ export default function Home({ onSelectBusiness, goToReport }) {
 
 export function BusinessCard({ business, onClick }) {
   const trustColor = business.trust_score > 70 ? '#1D9E75' : business.trust_score > 40 ? '#EF9F27' : '#E24B4A'
+  const initial = (business.name || 'B')[0].toUpperCase()
   return (
     <div className={`biz-card ${business.status === 'flagged' ? 'flagged' : ''}`} onClick={onClick}>
       <div className="biz-top">
-        <div className="biz-name">{business.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          {business.photo_url ? (
+            <img src={business.photo_url} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1.5px solid var(--border)' }} />
+          ) : (
+            <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--hover-bg)', border: '1.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, color: 'var(--text-muted)', flexShrink: 0 }}>
+              {initial}
+            </div>
+          )}
+          <div className="biz-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{business.name}</div>
+        </div>
         <span className={`badge ${business.status === 'verified' ? 'badge-verified' : 'badge-danger'}`}>
           {business.status === 'verified' ? 'Verified' : 'Flagged'}
         </span>
