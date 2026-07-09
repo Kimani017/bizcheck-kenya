@@ -125,11 +125,11 @@ export default function Pricing({ currentUser, businessMode, onBack }) {
             </div>
 
             <div style={cardStyle}>
-              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Listing Only</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: '#1D9E75' }}>Ksh 227<span style={{ fontSize: 13, fontWeight: 400 }}>/year</span></div>
-              <p className="muted" style={{ fontSize: 13 }}>Appear in Market & search only. No dashboard, replies, or B2B.</p>
-              <button style={btnStyle(loadingPlan)} disabled={!!loadingPlan} onClick={() => startCheckout({ paymentType: 'business_listing_only', amount: 227, businessId: businessMode.id })}>
-                {loadingPlan === 'business_listing_only' ? 'Starting…' : 'Choose Listing Only'}
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>🟣 Full Control — Annual</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#1D9E75' }}>Ksh 3,559<span style={{ fontSize: 13, fontWeight: 400 }}>/year</span></div>
+              <p className="muted" style={{ fontSize: 13 }}>12% off the monthly rate. Same full experience, billed once a year.</p>
+              <button style={btnStyle(loadingPlan)} disabled={!!loadingPlan} onClick={() => startCheckout({ paymentType: 'business_full_control', amount: 3559, billingCycle: 'annual', businessId: businessMode.id })}>
+                {loadingPlan === 'business_full_controlannual' ? 'Starting…' : 'Get Full Control annually'}
               </button>
             </div>
 
