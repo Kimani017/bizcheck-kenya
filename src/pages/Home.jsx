@@ -2,6 +2,61 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { SkeletonCard } from './Skeleton'
 
+const SAFETY_TIPS = [
+  '💡 Always verify a till number on BizCheck before sending money.',
+  '💡 Be cautious of sellers who refuse M-Pesa and insist on untraceable payment.',
+  '💡 A deal that looks too good to be true usually is — check the trust score first.',
+  '💡 Never pay a "reservation fee" to a seller you have not verified.',
+  '💡 Check reviews from other buyers before making large purchases.',
+]
+
+// Animated count-up for the live stats
+function CountUp({ target }) {
+  const [value, setValue] = useState(0)
+  useEffect(() => {
+    if (!target) { setValue(0); return }
+    let frame
+    const duration = 1200
+    const start = performance.now()
+    function tick(now) {
+      const progress = Math.min((now - start) / duration, 1)
+      setValue(Math.floor(progress * target))
+      if (progress < 1) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [target])
+  return <>{value.toLocaleString()}</>
+}
+
+// Seamless auto-scrolling row of business cards.
+// direction 'ltr' = moves left→right, 'rtl' = right→left. Pauses on hover.
+function Marquee({ businesses, direction, onSelectBusiness }) {
+  if (businesses.length === 0) return null
+  // Fewer than 3 cards makes a marquee look broken — show a static grid instead
+  if (businesses.length < 3) {
+    return (
+      <div className="biz-grid">
+        {businesses.map((b) => (
+          <BusinessCard key={b.id} business={b} onClick={() => onSelectBusiness(b)} />
+        ))}
+      </div>
+    )
+  }
+  const loop = [...businesses, ...businesses] // duplicated for the seamless loop
+  return (
+    <div className="marquee">
+      <div className={`marquee-track ${direction === 'ltr' ? 'marquee-ltr' : 'marquee-rtl'}`}>
+        {loop.map((b, i) => (
+          <div className="marquee-item" key={`${b.id}-${i}`}>
+            <BusinessCard business={b} onClick={() => onSelectBusiness(b)} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Home({ onSelectBusiness, goToReport }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState(null)
@@ -10,9 +65,14 @@ export default function Home({ onSelectBusiness, goToReport }) {
   const [loading, setLoading] = useState(false)
   const [listsLoading, setListsLoading] = useState(true)
   const [searchTimeout, setSearchTimeout] = useState(null)
+  const [stats, setStats] = useState({ verified: 0, flagged: 0, reports: 0 })
+  const [tipIndex, setTipIndex] = useState(0)
 
   useEffect(() => {
     loadLists()
+    loadStats()
+    const tipTimer = setInterval(() => setTipIndex((i) => (i + 1) % SAFETY_TIPS.length), 6000)
+    return () => clearInterval(tipTimer)
   }, [])
 
   async function loadLists() {
@@ -22,18 +82,27 @@ export default function Home({ onSelectBusiness, goToReport }) {
       .select('*')
       .eq('status', 'verified')
       .order('created_at', { ascending: false })
-      .limit(4)
+      .limit(12)
 
     const { data: flaggedData } = await supabase
       .from('businesses')
       .select('*')
-      .eq('status', 'flagged')
+      .in('status', ['flagged', 'scam'])
       .order('updated_at', { ascending: false })
-      .limit(4)
+      .limit(12)
 
     setRecent(verifiedData || [])
     setFlagged(flaggedData || [])
     setListsLoading(false)
+  }
+
+  async function loadStats() {
+    const [v, f, r] = await Promise.all([
+      supabase.from('businesses').select('id', { count: 'exact', head: true }).eq('status', 'verified'),
+      supabase.from('businesses').select('id', { count: 'exact', head: true }).in('status', ['flagged', 'scam', 'banned']),
+      supabase.from('reports').select('id', { count: 'exact', head: true }),
+    ])
+    setStats({ verified: v.count || 0, flagged: f.count || 0, reports: r.count || 0 })
   }
 
   async function handleSearch(overrideQuery) {
@@ -65,7 +134,17 @@ export default function Home({ onSelectBusiness, goToReport }) {
   return (
     <div>
       {/* HERO */}
-      <div className="hero">
+      <div className="hero" style={{ position: 'relative', overflow: 'hidden' }}>
+        {/* Themed SVG shield decoration — always loads, adapts to theme */}
+        <svg viewBox="0 0 200 200" aria-hidden="true" style={{ position: 'absolute', right: -30, top: -30, width: 220, height: 220, opacity: 0.07, pointerEvents: 'none' }}>
+          <path d="M100 10 L170 40 V100 C170 150 140 180 100 195 C60 180 30 150 30 100 V40 Z" fill="#1D9E75" />
+          <path d="M70 100 L92 122 L135 75" stroke="#fff" strokeWidth="14" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <svg viewBox="0 0 200 200" aria-hidden="true" style={{ position: 'absolute', left: -50, bottom: -60, width: 200, height: 200, opacity: 0.05, pointerEvents: 'none' }}>
+          <circle cx="100" cy="100" r="90" fill="none" stroke="#1D9E75" strokeWidth="16" />
+          <circle cx="100" cy="100" r="55" fill="none" stroke="#1D9E75" strokeWidth="10" />
+        </svg>
+
         <div className="hero-badge">🇰🇪 Trusted by Kenyans</div>
         <h1>Is this seller legit?</h1>
         <p>Search any business, phone number, M-Pesa till, or social handle before you buy.</p>
@@ -87,13 +166,17 @@ export default function Home({ onSelectBusiness, goToReport }) {
           <button onClick={handleSearch}>{loading ? 'Searching…' : 'Check'}</button>
         </div>
 
-        {/* Stats */}
+        {/* LIVE stats — real counts from the database */}
         <div className="hero-stats">
-          <div className="hero-stat"><span className="hero-stat-num">1,842</span><span className="hero-stat-label">Verified businesses</span></div>
-          <div className="hero-stat"><span className="hero-stat-num">376</span><span className="hero-stat-label">Scammers flagged</span></div>
-          <div className="hero-stat"><span className="hero-stat-num">12,400+</span><span className="hero-stat-label">Community reports</span></div>
-          <div className="hero-stat"><span className="hero-stat-num">Ksh 4.2M</span><span className="hero-stat-label">Fraud prevented</span></div>
+          <div className="hero-stat"><span className="hero-stat-num"><CountUp target={stats.verified} /></span><span className="hero-stat-label">Verified businesses</span></div>
+          <div className="hero-stat"><span className="hero-stat-num"><CountUp target={stats.flagged} /></span><span className="hero-stat-label">Scammers flagged</span></div>
+          <div className="hero-stat"><span className="hero-stat-num"><CountUp target={stats.reports} /></span><span className="hero-stat-label">Community reports</span></div>
         </div>
+      </div>
+
+      {/* ROTATING SAFETY TIP */}
+      <div className="safety-tip-banner" key={tipIndex}>
+        {SAFETY_TIPS[tipIndex]}
       </div>
 
       {/* SEARCH RESULTS */}
@@ -115,37 +198,49 @@ export default function Home({ onSelectBusiness, goToReport }) {
         </div>
       )}
 
-      {/* RECENTLY VERIFIED */}
+      {/* RECENTLY VERIFIED — escalator moving left → right */}
       <div className="section">
-        <h2>Recently verified</h2>
-        <div className="biz-grid">
-          {listsLoading ? (
-            Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-          ) : (
-            <>
-              {recent.map((b) => (
-                <BusinessCard key={b.id} business={b} onClick={() => onSelectBusiness(b)} />
-              ))}
-              {recent.length === 0 && <p className="muted">No verified businesses yet.</p>}
-            </>
-          )}
-        </div>
+        <h2>✅ Recently verified</h2>
+        {listsLoading ? (
+          <div className="biz-grid">{Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}</div>
+        ) : recent.length === 0 ? (
+          <p className="muted">No verified businesses yet.</p>
+        ) : (
+          <Marquee businesses={recent} direction="ltr" onSelectBusiness={onSelectBusiness} />
+        )}
       </div>
 
-      {/* RECENTLY FLAGGED */}
+      {/* RECENTLY FLAGGED — escalator moving right → left */}
       <div className="section">
         <h2>⚠ Recently reported</h2>
-        <div className="biz-grid">
-          {listsLoading ? (
-            Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-          ) : (
-            <>
-              {flagged.map((b) => (
-                <BusinessCard key={b.id} business={b} onClick={() => onSelectBusiness(b)} />
-              ))}
-              {flagged.length === 0 && <p className="muted">No flagged businesses yet.</p>}
-            </>
-          )}
+        {listsLoading ? (
+          <div className="biz-grid">{Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}</div>
+        ) : flagged.length === 0 ? (
+          <p className="muted">No flagged businesses yet.</p>
+        ) : (
+          <Marquee businesses={flagged} direction="rtl" onSelectBusiness={onSelectBusiness} />
+        )}
+      </div>
+
+      {/* HOW BIZCHECK WORKS */}
+      <div className="section">
+        <h2>How BizCheck works</h2>
+        <div className="how-grid">
+          <div className="how-card">
+            <div className="how-icon">🔍</div>
+            <h3>1. Search</h3>
+            <p>Look up any seller by name, phone, M-Pesa till, or social handle before you pay.</p>
+          </div>
+          <div className="how-card">
+            <div className="how-icon">📊</div>
+            <h3>2. Check the score</h3>
+            <p>See their trust score, community votes, and real reviews from other buyers.</p>
+          </div>
+          <div className="how-card">
+            <div className="how-icon">🚩</div>
+            <h3>3. Report scams</h3>
+            <p>Been scammed? Report it and protect the next Kenyan from losing their money.</p>
+          </div>
         </div>
       </div>
     </div>
