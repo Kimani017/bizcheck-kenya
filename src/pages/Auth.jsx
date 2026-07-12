@@ -131,7 +131,7 @@ export default function Auth({ onAuthed, initialMode }) {
   async function handleGoogleSignIn() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: 'https://bizcheck-kenya.vercel.app' },
+      options: { redirectTo: window.location.origin },
     })
     if (error) setError('Google sign-in failed. Please try again.')
   }
