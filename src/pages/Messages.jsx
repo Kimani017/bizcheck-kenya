@@ -14,7 +14,7 @@ function linkify(text) {
   )
 }
 
-export default function Messages({ currentUser, initialTargetId, isAdmin, businessMode, onBack, onInsufficientCredits }) {
+export default function Messages({ currentUser, initialTargetId, isAdmin, businessMode, onBack, onInsufficientCredits, onMessageBusiness }) {
   const [threads, setThreads] = useState([])
   const [activeThread, setActiveThread] = useState(null) // { profile, otherUserId }
   const [messages, setMessages] = useState([])
@@ -24,6 +24,10 @@ export default function Messages({ currentUser, initialTargetId, isAdmin, busine
   const [showLinkPicker, setShowLinkPicker] = useState(false)
   const [otherBusinesses, setOtherBusinesses] = useState([])
   const [showReportModal, setShowReportModal] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchMode, setSearchMode] = useState('users') // users | businesses (businesses only in business mode)
+  const [searchResults, setSearchResults] = useState(null)
+  const [searchingContacts, setSearchingContacts] = useState(false)
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -135,7 +139,56 @@ export default function Messages({ currentUser, initialTargetId, isAdmin, busine
     setShowLinkPicker(true)
   }
 
-  async function sendEditLink(targetType, businessId = null, businessName = null) {
+  async function searchContacts() {
+    const q = searchQuery.trim()
+    if (!q) { setSearchResults(null); return }
+
+    // Searching costs credits (silently): search_user or search_business
+    const action = searchMode === 'businesses' ? 'search_business' : 'search_user'
+    const cost = searchMode === 'businesses' ? 0.5 : 0.1
+    const charge = businessMode
+      ? await chargeBusinessCredits(businessMode.id, action, cost)
+      : await chargeUserCredits('search_user', 0.1)
+    if (!charge.ok) {
+      if (charge.insufficientCredits && onInsufficientCredits) { onInsufficientCredits(); return }
+      if (charge.insufficientCredits) { alert('You are out of credits.'); return }
+      alert('Error: ' + charge.error); return
+    }
+
+    setSearchingContacts(true)
+    if (searchMode === 'businesses') {
+      const { data } = await supabase
+        .from('businesses')
+        .select('id, name, category, owner_id')
+        .eq('status', 'verified')
+        .neq('id', businessMode.id)
+        .ilike('name', `%${q}%`)
+        .limit(8)
+      setSearchResults((data || []).map((b) => ({ type: 'business', ...b })))
+    } else {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, name, role')
+        .ilike('username', `%${q}%`)
+        .neq('id', currentUser.id)
+        .not('role', 'in', '("admin","superadmin")')
+        .limit(8)
+      setSearchResults((data || []).map((u) => ({ type: 'user', ...u })))
+    }
+    setSearchingContacts(false)
+  }
+
+  function pickSearchResult(r) {
+    setSearchResults(null)
+    setSearchQuery('')
+    if (r.type === 'business') {
+      if (onMessageBusiness) onMessageBusiness(r)
+    } else {
+      openThreadWith(r.id)
+    }
+  }
+
+    async function sendEditLink(targetType, businessId = null, businessName = null) {
     const { data: token, error } = await supabase.rpc('create_edit_link', {
       p_target_user_id: activeThread.otherUserId,
       p_target_type: targetType,
@@ -166,7 +219,36 @@ export default function Messages({ currentUser, initialTargetId, isAdmin, busine
       <div style={{ display: 'flex', gap: 16, height: 520, flexWrap: 'wrap' }}>
         {/* THREAD LIST */}
         <div style={{ width: 260, flexShrink: 0, border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '10px 14px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>
+          <div style={{ padding: '10px 12px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+            {businessMode && (
+              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                <button className="btn-ghost-small" style={{ fontSize: 11, ...(searchMode === 'users' ? { background: '#1D9E75', color: '#fff' } : {}) }} onClick={() => { setSearchMode('users'); setSearchResults(null) }}>Users</button>
+                <button className="btn-ghost-small" style={{ fontSize: 11, ...(searchMode === 'businesses' ? { background: '#1D9E75', color: '#fff' } : {}) }} onClick={() => { setSearchMode('businesses'); setSearchResults(null) }}>Businesses</button>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && searchContacts()}
+                placeholder={searchMode === 'businesses' ? 'Find a business…' : 'Find a user…'}
+                style={{ flex: 1, minWidth: 0, padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12, background: 'var(--surface)', color: 'var(--text)' }}
+              />
+              <button className="btn-small" style={{ fontSize: 12, padding: '6px 10px' }} onClick={searchContacts} disabled={searchingContacts}>{searchingContacts ? '…' : '🔍'}</button>
+            </div>
+          </div>
+          {searchResults !== null && (
+            <div style={{ borderBottom: '1px solid var(--border)', maxHeight: 180, overflowY: 'auto' }}>
+              {searchResults.length === 0 ? (
+                <p className="muted" style={{ padding: '10px 14px', fontSize: 12 }}>No matches found.</p>
+              ) : searchResults.map((r) => (
+                <button key={`${r.type}-${r.id}`} onClick={() => pickSearchResult(r)} style={{ width: '100%', textAlign: 'left', padding: '9px 14px', border: 'none', borderBottom: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: 13 }}>
+                  {r.type === 'business' ? <>🏢 <strong>{r.name}</strong> <span className="muted" style={{ fontSize: 11 }}>{r.category}</span></> : <><strong>@{r.username || 'user'}</strong></>}
+                </button>
+              ))}
+            </div>
+          )}
+          <div style={{ padding: '8px 14px', fontWeight: 700, fontSize: 13, borderBottom: '1px solid var(--border)' }}>
             Conversations ({threads.length})
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>

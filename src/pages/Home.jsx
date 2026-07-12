@@ -114,7 +114,15 @@ export default function Home({ onSelectBusiness, goToReport }) {
     const { data: rpcData, error: rpcError } = await supabase.rpc('search_businesses', { query: q })
 
     if (!rpcError && rpcData && rpcData.length > 0) {
-      setResults(rpcData)
+      // Also surface banned matches (the RPC may exclude them)
+      const { data: bannedData } = await supabase
+        .from('businesses')
+        .select('*')
+        .eq('status', 'banned')
+        .ilike('name', `%${q}%`)
+      const seen = new Set(rpcData.map((b) => b.id))
+      const merged = [...rpcData, ...(bannedData || []).filter((b) => !seen.has(b.id))]
+      setResults(merged)
       setLoading(false)
       return
     }
@@ -123,7 +131,7 @@ export default function Home({ onSelectBusiness, goToReport }) {
     const { data: fallbackData } = await supabase
       .from('businesses')
       .select('*')
-      .in('status', ['verified', 'flagged'])
+      .in('status', ['verified', 'flagged', 'scam', 'banned'])
       .or(`name.ilike.%${q}%,phone.ilike.%${q}%,mpesa_till.ilike.%${q}%,fb_handle.ilike.%${q}%,tiktok_handle.ilike.%${q}%`)
       .order('trust_score', { ascending: false })
 
@@ -264,7 +272,7 @@ export function BusinessCard({ business, onClick }) {
           <div className="biz-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{business.name}</div>
         </div>
         <span className={`badge ${business.status === 'verified' ? 'badge-verified' : 'badge-danger'}`}>
-          {business.status === 'verified' ? 'Verified' : 'Flagged'}
+          {business.status === 'verified' ? 'Verified' : business.status === 'banned' ? '🚫 Banned' : 'Flagged'}
         </span>
       </div>
       <div className="biz-cat">{business.category}</div>

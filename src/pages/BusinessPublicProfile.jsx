@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import { chargeUserCredits } from './CreditGate'
 
 const STARS = [1, 2, 3, 4, 5]
 
@@ -13,7 +14,7 @@ function StarDisplay({ rating, size = 16 }) {
   )
 }
 
-export default function BusinessPublicProfile({ business, onBack, onReport, currentUser, isAdmin, businessMode, onMessageBusiness }) {
+export default function BusinessPublicProfile({ business, onBack, onReport, currentUser, isAdmin, businessMode, onMessageBusiness, onMessageUser, onInsufficientCredits }) {
   const [biz, setBiz] = useState(business)
   const [reviews, setReviews] = useState([])
   const [replies, setReplies] = useState({}) // { review_id: [replies] }
@@ -70,9 +71,32 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
     if (updated) setBiz(updated)
   }
 
+  async function messageBusinessAsUser() {
+    const charge = await chargeUserCredits('message_business', 0.5)
+    if (!charge.ok) {
+      if (charge.insufficientCredits) { onInsufficientCredits?.(); return }
+      alert('Error: ' + charge.error)
+      return
+    }
+    onMessageUser(biz.owner_id)
+  }
+
   async function submitReview() {
     if (!rating) { alert('Please select a star rating.'); return }
     setSubmitting(true)
+
+    // Charge 0.5 credits only for a NEW review — editing your existing
+    // review doesn't cost again.
+    if (!myReview) {
+      const charge = await chargeUserCredits('write_review', 0.5)
+      if (!charge.ok) {
+        setSubmitting(false)
+        if (charge.insufficientCredits) { onInsufficientCredits?.(); return }
+        alert('Error: ' + charge.error)
+        return
+      }
+    }
+
     const payload = {
       business_id: biz.id,
       reviewer_id: currentUser.id,
@@ -112,29 +136,59 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
 
   const trustColor = biz.trust_score > 70 ? '#1D9E75' : biz.trust_score > 40 ? '#EF9F27' : '#E24B4A'
 
+  if (biz.status === 'banned') {
+    return (
+      <div className="section" style={{ maxWidth: 560 }}>
+        <button className="link-btn" onClick={onBack}>← Back</button>
+        <div style={{ background: 'var(--surface)', border: '1.5px solid #F7C1C1', borderRadius: 16, padding: '36px 28px', textAlign: 'center', marginTop: 12 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🚫</div>
+          <h2 style={{ marginBottom: 6, color: '#A32D2D' }}>{biz.name}</h2>
+          <p style={{ fontWeight: 700, color: '#A32D2D', marginBottom: 16 }}>This business has been banned from BizCheck Kenya.</p>
+          <div style={{ background: '#FCEBEB', border: '1px solid #F7C1C1', borderRadius: 12, padding: '14px 18px', textAlign: 'left' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#A32D2D', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Reason for ban</div>
+            <p style={{ fontSize: 14, color: '#7a2020' }}>{biz.ban_reason || 'Violation of BizCheck community guidelines.'}</p>
+          </div>
+          {biz.banned_at && (
+            <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
+              Banned on {new Date(biz.banned_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+          )}
+          <p className="muted" style={{ fontSize: 13, marginTop: 14 }}>Do not transact with this business. If you were scammed by them, our team already has it on record.</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="section" style={{ maxWidth: 680 }}>
       <button className="link-btn" onClick={onBack}>← Back</button>
 
       {/* HEADER */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h2 style={{ fontSize: 24, marginBottom: 4, color: 'var(--text-strong)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-            {biz.name}
-            {biz.admin_reviewed && (
-              <span title="Reviewed and verified by BizCheck admin" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: '#1877F2', flexShrink: 0 }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </span>
-            )}
-            {biz.plan_type === 'full_control' && biz.plan_status === 'active' && (
-              <span title="Full Control subscriber — premium business" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: '#9333EA', flexShrink: 0 }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </span>
-            )}
-          </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span className="badge badge-verified" style={{ fontSize: 12 }}>{biz.category}</span>
-            {biz.location && <span className="muted">📍 {biz.location}</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {biz.photo_url ? (
+            <img src={biz.photo_url} alt={biz.name} style={{ width: 64, height: 64, borderRadius: 14, objectFit: 'cover', flexShrink: 0 }} />
+          ) : (
+            <div style={{ width: 64, height: 64, borderRadius: 14, background: 'var(--hover-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, flexShrink: 0 }}>🏢</div>
+          )}
+          <div>
+            <h2 style={{ fontSize: 24, marginBottom: 4, color: 'var(--text-strong)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+              {biz.name}
+              {biz.admin_reviewed && (
+                <span title="Reviewed and verified by BizCheck admin" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: '#1877F2', flexShrink: 0 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
+              )}
+              {biz.plan_type === 'full_control' && biz.plan_status === 'active' && (
+                <span title="Full Control subscriber — premium business" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: '#9333EA', flexShrink: 0 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
+              )}
+            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span className="badge badge-verified" style={{ fontSize: 12 }}>{biz.category}</span>
+              {biz.location && <span className="muted">📍 {biz.location}</span>}
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
@@ -144,6 +198,14 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
               style={{ background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
             >
               💬 B2B Message
+            </button>
+          )}
+          {!businessMode && !isAdmin && biz.owner_id && biz.owner_id !== currentUser?.id && onMessageUser && (
+            <button
+              onClick={messageBusinessAsUser}
+              style={{ background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              💬 Message this business
             </button>
           )}
           <span className={`badge ${biz.status === 'verified' ? 'badge-verified' : 'badge-danger'}`} style={{ fontSize: 13, padding: '6px 14px' }}>

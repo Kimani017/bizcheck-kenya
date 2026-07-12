@@ -25,6 +25,7 @@ import ReportTab from './pages/ReportTab'
 import UserActivity from './pages/UserActivity'
 import Notifications from './pages/Notifications'
 import Pricing from './pages/Pricing'
+import { chargeUserCredits, InsufficientCreditsModal } from './pages/CreditGate'
 import AdminApplicationForm from './pages/AdminApplicationForm'
 import EnterAdminCode from './pages/EnterAdminCode'
 import Settings from './pages/Settings'
@@ -54,6 +55,7 @@ function App() {
   const [ownedVerifiedBusinesses, setOwnedVerifiedBusinesses] = useState([])
   const [businessMode, setBusinessMode] = useState(null) // the business object, or null for personal
   const [b2bTargetBusiness, setB2bTargetBusiness] = useState(null)
+  const [showCreditModal, setShowCreditModal] = useState(false)
   const [restoring, setRestoring] = useState(true)
   const [theme, setTheme] = useState(() => localStorage.getItem('bizcheck_theme') || 'light')
   const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768)
@@ -280,13 +282,27 @@ function App() {
     setIsSuperadmin(!!profile && profile.role === 'superadmin')
   }
 
-  function openBusiness(business) {
+  async function openBusiness(business) {
     supabase.from('profile_views').insert({
       business_id: business.id,
       viewer_id: user?.id || null,
       view_type: 'card_click',
     })
-    if (user && business.owner_id === user.id) {
+
+    const isOwnBusiness = user && business.owner_id === user.id
+
+    // Charge 1 credit for personal-account users viewing someone else's business.
+    // Bypassed for: business mode (their own charge model), admins, and viewing your own listing.
+    if (user && !businessMode && !isAdmin && !isOwnBusiness) {
+      const result = await chargeUserCredits('view_business_profile', 1)
+      if (!result.ok) {
+        if (result.insufficientCredits) { setShowCreditModal(true); return }
+        alert('Error: ' + result.error)
+        return
+      }
+    }
+
+    if (isOwnBusiness) {
       navigate('bizDashboard', { business })
     } else {
       navigate('bizProfile', { business })
@@ -508,10 +524,10 @@ function App() {
 
       <div className="main-content">
         {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
-        {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} businessMode={businessMode} initialMarketSubtab={b2bTargetBusiness ? 'b2b' : 'browse'} initialB2BTarget={b2bTargetBusiness} />}
+        {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} businessMode={businessMode} initialMarketSubtab={b2bTargetBusiness ? 'b2b' : 'browse'} initialB2BTarget={b2bTargetBusiness} onInsufficientCredits={() => setShowCreditModal(true)} />}
         {page === 'report' && (
           businessMode
-            ? <ReportTab currentUser={user} businessMode={businessMode} onMessageUser={openMessages} onDone={() => navigate('home')} />
+            ? <ReportTab currentUser={user} businessMode={businessMode} onMessageUser={openMessages} onDone={() => navigate('home')} onInsufficientCredits={() => setShowCreditModal(true)} />
             : <ReportForm currentUser={user} onDone={() => navigate('home')} prefill={reportPrefill} />
         )}
         {page === 'userActivity' && isAdmin && <UserActivity onBack={null} />}
@@ -529,9 +545,9 @@ function App() {
         {page === 'admin' && <AdminDashboard onSelectBusiness={openBusiness} onSelectUser={openUserProfile} />}
         {page === 'adminProfiles' && <AdminProfiles onSelectBusiness={openBusiness} onSelectUser={openUserProfile} currentUser={user} />}
         {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} onLogout={handleLogout} onOpenSupport={() => navigate('support')} onOpenPricing={() => navigate('pricing')} businessMode={businessMode} onSwitchToPersonal={() => { setBusinessMode(null); navigate('home') }} />}
-        {page === 'support' && <Support onBack={goBack} currentUser={user} />}
+        {page === 'support' && <Support onBack={goBack} currentUser={user} businessMode={businessMode} onInsufficientCredits={() => setShowCreditModal(true)} />}
         {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
-        {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} isAdmin={isAdmin} onBack={goBack} />}
+        {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} isAdmin={isAdmin} businessMode={businessMode} onBack={goBack} onInsufficientCredits={() => setShowCreditModal(true)} onMessageBusiness={openB2BChat} />}
         {page === 'b2bOversight' && isSuperadmin && <B2BOversight onBack={goBack} />}
         {page === 'bizProfile' && selectedBusiness && (
           <BusinessPublicProfile
@@ -542,6 +558,8 @@ function App() {
             isAdmin={isAdmin}
             businessMode={businessMode}
             onMessageBusiness={openB2BChat}
+            onMessageUser={openMessages}
+            onInsufficientCredits={() => setShowCreditModal(true)}
           />
         )}
         {page === 'bizDashboard' && selectedBusiness && (
@@ -549,6 +567,8 @@ function App() {
             business={selectedBusiness}
             onBack={goBack}
             currentUser={user}
+            onInsufficientCredits={() => setShowCreditModal(true)}
+            onOpenPricing={() => navigate('pricing')}
           />
         )}
         {page === 'userProfile' && selectedUserId && (
@@ -562,6 +582,13 @@ function App() {
           />
         )}
       </div>
+      {showCreditModal && (
+        <InsufficientCreditsModal
+          isBusiness={!!businessMode}
+          onClose={() => setShowCreditModal(false)}
+          onGoToPricing={() => { setShowCreditModal(false); navigate('pricing') }}
+        />
+      )}
     </div>
   )
 }

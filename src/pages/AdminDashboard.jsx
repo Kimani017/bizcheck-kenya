@@ -15,6 +15,9 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   const [userReports, setUserReports] = useState([])
   const [bizSubTab, setBizSubTab] = useState('verified') // verified | flagged | scam
   const [reportSubTab, setReportSubTab] = useState('pending') // pending | reported | log
+  const [processingSubmission, setProcessingSubmission] = useState(null)
+  const [claims, setClaims] = useState([])
+  const [claimNamesById, setClaimNamesById] = useState({})
 
   const [businesses, setBusinesses] = useState([])
   const [submissions, setSubmissions] = useState([])
@@ -24,6 +27,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   const [isSuperadmin, setIsSuperadmin] = useState(false)
   const [banCodeModal, setBanCodeModal] = useState(null) // businessId awaiting code, or null
   const [banCodeInput, setBanCodeInput] = useState('')
+  const [banReason, setBanReason] = useState('')
   const [currentAdminId, setCurrentAdminId] = useState(null)
 
   useEffect(() => { checkAdmin() }, [])
@@ -57,6 +61,8 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   // Banning requires the superadmin's secret code unless you ARE the superadmin
   async function sendBizcode(business) {
     if (!business.owner_id) { alert('This business has no owner linked yet.'); return }
+    if (processingSubmission === business.id) return
+    setProcessingSubmission(business.id)
 
     const { data: owner } = await supabase.from('profiles').select('email, name').eq('id', business.owner_id).single()
     const email = business.owner_email || owner?.email
@@ -77,6 +83,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     } catch (e) {
       alert(`Bizcode generated, but the email failed to send. Share this code with the owner manually:\n\n${bizcode}`)
     }
+    setProcessingSubmission(null)
     loadAll()
   }
 
@@ -86,16 +93,35 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
       setBanCodeModal(businessId)
       return
     }
-    await submitBan(businessId, null)
+    const reason = prompt('Reason for banning this business (required — shown on the public banned page):')
+    if (!reason || reason.trim().length < 5) { alert('A clear reason is required.'); return }
+    setBanReason(reason.trim())
+    await submitBanWithReason(businessId, null, reason.trim())
   }
 
-  async function submitBan(businessId, code) {
-    const { error } = await supabase.rpc('ban_business_with_code', { p_business_id: businessId, p_code: code })
+  async function submitBanWithReason(businessId, code, reason) {
+    const { error } = await supabase.rpc('ban_business_with_code', { p_business_id: businessId, p_code: code, p_reason: reason })
     if (error) {
       alert(error.message.includes('Too many') ? '⏱ ' + error.message : 'Error: ' + error.message)
       return
     }
     setBanCodeModal(null)
+    setBanReason('')
+    loadAll()
+  }
+
+  async function submitBan(businessId, code) {
+    if (!banReason.trim() || banReason.trim().length < 5) {
+      alert('Please give a clear reason for banning this business — the superadmin and the public banned page will see it.')
+      return
+    }
+    const { error } = await supabase.rpc('ban_business_with_code', { p_business_id: businessId, p_code: code, p_reason: banReason.trim() })
+    if (error) {
+      alert(error.message.includes('Too many') ? '⏱ ' + error.message : 'Error: ' + error.message)
+      return
+    }
+    setBanCodeModal(null)
+    setBanReason('')
     loadAll()
   }
 
@@ -110,6 +136,26 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     setSubmissions(subRes.data || [])
     setReports(repRes.data || [])
 
+    const { data: claimData } = await supabase
+      .from('claim_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+    setClaims(claimData || [])
+
+    // Resolve claimant usernames + business names client-side (avoids FK-ambiguity 400s)
+    if (claimData && claimData.length > 0) {
+      const userIds = Array.from(new Set(claimData.map((c) => c.claimant_id)))
+      const bizIds = Array.from(new Set(claimData.map((c) => c.business_id)))
+      const [{ data: claimUsers }, { data: claimBizs }] = await Promise.all([
+        supabase.from('profiles').select('id, username, name').in('id', userIds),
+        supabase.from('businesses').select('id, name').in('id', bizIds),
+      ])
+      const names = {}
+      claimUsers?.forEach((u) => { names[u.id] = `@${u.username || 'user'}` })
+      claimBizs?.forEach((b) => { names[b.id] = b.name })
+      setClaimNamesById(names)
+    }
+
     const { data: userRepData } = await supabase
       .from('user_reports')
       .select('*, reporter:profiles!user_reports_reporter_id_fkey(username, name), reported:profiles!user_reports_reported_user_id_fkey(username, name)')
@@ -118,6 +164,14 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
 
     await loadChatThreads()
     setLoading(false)
+  }
+
+  async function decideClaim(claim, approve) {
+    const rpc = approve ? 'approve_claim' : 'reject_claim'
+    if (!confirm(approve ? `Approve this claim? ${claimNamesById[claim.claimant_id] || 'This user'} becomes the owner of ${claimNamesById[claim.business_id] || 'the business'}.` : 'Reject this claim?')) return
+    const { error } = await supabase.rpc(rpc, { p_claim_id: claim.id })
+    if (error) { alert('Error: ' + error.message); return }
+    loadAll()
   }
 
   async function banReportedUser(report) {
@@ -201,6 +255,16 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
 
   // ── SUBMISSIONS ──
   async function approveSubmission(sub) {
+    if (processingSubmission) return // guard against double-clicks sending the bizcode email twice
+    setProcessingSubmission(sub.id)
+    try {
+      await doApproveSubmission(sub)
+    } finally {
+      setProcessingSubmission(null)
+    }
+  }
+
+  async function doApproveSubmission(sub) {
     const { data: existing } = await supabase.from('businesses').select('id').ilike('name', sub.name).maybeSingle()
 
     const commonFields = {
@@ -228,6 +292,9 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
 
     // Generate the permanent bizcode for logging into business mode
     const { data: bizcode, error: codeError } = await supabase.rpc('finalize_business_verification', { p_business_id: businessId })
+
+    // Link any listing fee the applicant paid at submission time, activating their Listing Only plan
+    await supabase.rpc('link_listing_payment', { p_submitter_id: sub.submitter_id, p_business_id: businessId })
     if (codeError) { alert('Verified, but could not generate bizcode: ' + codeError.message); }
 
     await supabase.from('submissions').update({
@@ -360,6 +427,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
           ['reports', 'Reports'],
           ['verification', `Business Verification${submissions.length ? ` (${submissions.length})` : ''}`],
           ['userReports', `User Reports${userReports.filter(r => r.status === 'pending').length ? ` (${userReports.filter(r => r.status === 'pending').length})` : ''}`],
+          ['claims', `Claims${claims.filter(c => c.status === 'pending').length ? ` (${claims.filter(c => c.status === 'pending').length})` : ''}`],
           ['chat', `Support Chat${chatThreads.reduce((s, t) => s + t.unreadCount, 0) ? ` (${chatThreads.reduce((s, t) => s + t.unreadCount, 0)})` : ''}`],
         ].map(([id, label]) => (
           <button
@@ -573,9 +641,37 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
                 </div>
               </div>
               <div className="admin-actions">
-                <button className="btn-small" onClick={() => approveSubmission(s)}>Approve</button>
+                <button className="btn-small" onClick={() => approveSubmission(s)} disabled={processingSubmission === s.id}>{processingSubmission === s.id ? "Approving…" : "Approve"}</button>
                 <button className="btn-ghost-small" onClick={() => rejectSubmission(s)}>Reject</button>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ══════════════ BUSINESS CLAIMS ══════════════ */}
+      {mainTab === 'claims' && (
+        claims.length === 0 ? <p className="muted">No business claims yet.</p> :
+        <div className="admin-list">
+          {claims.map((c) => (
+            <div className="admin-row" key={c.id} style={{ flexWrap: 'wrap' }}>
+              <div>
+                <strong>{claimNamesById[c.business_id] || 'Business'}</strong>
+                <span className={`badge ${c.status === 'pending' ? 'badge-pending' : c.status === 'approved' ? 'badge-verified' : 'badge-danger'}`} style={{ marginLeft: 8 }}>{c.status}</span>
+                <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                  Claimed by {claimNamesById[c.claimant_id] || 'user'} · ID number: {c.id_number}
+                </div>
+                {c.reason && <div style={{ fontSize: 13, marginTop: 4 }}>{c.reason}</div>}
+                <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                  {new Date(c.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+              </div>
+              {c.status === 'pending' && (
+                <div className="admin-actions">
+                  <button className="btn-small" onClick={() => decideClaim(c, true)}>Approve claim</button>
+                  <button className="btn-ghost-small" onClick={() => decideClaim(c, false)}>Reject</button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -711,13 +807,20 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
               <h3 style={{ marginBottom: 6, color: 'var(--text-strong)' }}>Ban authorization required</h3>
               <p className="muted" style={{ fontSize: 13 }}>Enter the ban code from the superadmin to proceed.</p>
             </div>
+            <textarea
+              value={banReason}
+              onChange={(e) => setBanReason(e.target.value)}
+              rows={3}
+              placeholder="Reason for the ban (required — shown to the superadmin and on the public banned page)"
+              autoFocus
+              style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface-2)', color: 'var(--text)', marginBottom: 10, boxSizing: 'border-box', resize: 'vertical' }}
+            />
             <input
               type="password"
               value={banCodeInput}
               onChange={(e) => setBanCodeInput(e.target.value.toUpperCase())}
               onKeyDown={(e) => e.key === 'Enter' && submitBan(banCodeModal, banCodeInput.trim())}
               placeholder="BAN-XXXXXXXX"
-              autoFocus
               style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 15, textAlign: 'center', letterSpacing: 2, fontFamily: 'monospace', background: 'var(--surface-2)', color: 'var(--text)', marginBottom: 14, boxSizing: 'border-box' }}
             />
             <div style={{ display: 'flex', gap: 8 }}>

@@ -48,7 +48,7 @@ export default function ReportForm({ onDone, prefill, currentUser }) {
     const { data: fallbackData, error: fallbackError } = await supabase
       .from('businesses')
       .select('*')
-      .in('status', ['verified', 'flagged'])
+      .in('status', ['verified', 'flagged', 'scam', 'banned'])
       .or(`name.ilike.%${q}%,phone.ilike.%${q}%,mpesa_till.ilike.%${q}%,fb_handle.ilike.%${q}%,tiktok_handle.ilike.%${q}%`)
       .order('trust_score', { ascending: false })
 
