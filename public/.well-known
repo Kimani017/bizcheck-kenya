@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.bizcheckkenya.app",
+        "sha256_cert_fingerprints": ["F1:EB:19:49:F8:95:07:36:8D:2A:E5:C2:7D:EC:B4:AD:57:88:BD:B0:7E:20:0B:0F:ED:5A:7F:A6:FB:26:FE:99"]
+      }
+    }]
