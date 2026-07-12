@@ -1,4 +1,4 @@
-export default function Settings({ theme, toggleTheme, onBack, onLogout, onOpenSupport, onOpenPricing, businessMode, onSwitchToPersonal }) {
+export default function Settings({ theme, toggleTheme, onBack, onLogout, onOpenSupport, onOpenPricing, onOpenPrivacy, onOpenTerms, businessMode, onSwitchToPersonal }) {
   return (
     <div className="section" style={{ maxWidth: 560 }}>
       <button className="link-btn" onClick={onBack}>← Back</button>
@@ -85,6 +85,11 @@ export default function Settings({ theme, toggleTheme, onBack, onLogout, onOpenS
       <p className="muted" style={{ fontSize: 13, marginTop: 24 }}>
         More settings — like notification preferences — are coming soon.
       </p>
+
+      <div style={{ marginTop: 16, fontSize: 13 }}>
+        <button className="link-btn" style={{ margin: '0 12px 0 0', fontSize: 13 }} onClick={onOpenPrivacy}>Privacy Policy</button>
+        <button className="link-btn" style={{ margin: 0, fontSize: 13 }} onClick={onOpenTerms}>Terms &amp; Conditions</button>
+      </div>
     </div>
   )
 }

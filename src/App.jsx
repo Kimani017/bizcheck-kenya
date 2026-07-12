@@ -25,6 +25,7 @@ import ReportTab from './pages/ReportTab'
 import UserActivity from './pages/UserActivity'
 import Notifications from './pages/Notifications'
 import Pricing from './pages/Pricing'
+import { PrivacyPolicy, TermsAndConditions } from './pages/Legal'
 import { chargeUserCredits, InsufficientCreditsModal } from './pages/CreditGate'
 import AdminApplicationForm from './pages/AdminApplicationForm'
 import EnterAdminCode from './pages/EnterAdminCode'
@@ -430,7 +431,14 @@ function App() {
             <button className="btn-signup" onClick={() => goToAuth('signup')}>Sign up</button>
           </div>
         </nav>
-        {page === 'auth' ? <Auth onAuthed={() => navigate('home')} initialMode={authMode} /> : <Landing goToAuth={goToAuth} />}
+        {page === 'privacy' ? <PrivacyPolicy onBack={() => navigate('home')} />
+          : page === 'terms' ? <TermsAndConditions onBack={() => navigate('home')} />
+          : page === 'auth' ? <Auth onAuthed={() => navigate('home')} initialMode={authMode} />
+          : <Landing goToAuth={goToAuth} />}
+        <div style={{ textAlign: 'center', padding: '18px 0 26px', fontSize: 12 }}>
+          <button className="link-btn" style={{ margin: '0 10px', fontSize: 12 }} onClick={() => navigate('privacy')}>Privacy Policy</button>
+          <button className="link-btn" style={{ margin: '0 10px', fontSize: 12 }} onClick={() => navigate('terms')}>Terms &amp; Conditions</button>
+        </div>
       </div>
     )
   }
@@ -541,10 +549,12 @@ function App() {
           />
         )}
         {page === 'pricing' && <Pricing currentUser={user} businessMode={businessMode} onBack={goBack} />}
+        {page === 'privacy' && <PrivacyPolicy onBack={goBack} />}
+        {page === 'terms' && <TermsAndConditions onBack={goBack} />}
         {page === 'submit' && <SubmitBusiness currentUser={user} onDone={() => navigate('directory')} />}
         {page === 'admin' && <AdminDashboard onSelectBusiness={openBusiness} onSelectUser={openUserProfile} />}
         {page === 'adminProfiles' && <AdminProfiles onSelectBusiness={openBusiness} onSelectUser={openUserProfile} currentUser={user} />}
-        {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} onLogout={handleLogout} onOpenSupport={() => navigate('support')} onOpenPricing={() => navigate('pricing')} businessMode={businessMode} onSwitchToPersonal={() => { setBusinessMode(null); navigate('home') }} />}
+        {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} onLogout={handleLogout} onOpenSupport={() => navigate('support')} onOpenPricing={() => navigate('pricing')} onOpenPrivacy={() => navigate('privacy')} onOpenTerms={() => navigate('terms')} businessMode={businessMode} onSwitchToPersonal={() => { setBusinessMode(null); navigate('home') }} />}
         {page === 'support' && <Support onBack={goBack} currentUser={user} businessMode={businessMode} onInsufficientCredits={() => setShowCreditModal(true)} />}
         {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
         {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} isAdmin={isAdmin} businessMode={businessMode} onBack={goBack} onInsufficientCredits={() => setShowCreditModal(true)} onMessageBusiness={openB2BChat} />}
@@ -568,7 +578,7 @@ function App() {
             onBack={goBack}
             currentUser={user}
             onInsufficientCredits={() => setShowCreditModal(true)}
-            onOpenPricing={() => navigate('pricing')}
+            onOpenPricing={() => navigate('pricing')} onOpenPrivacy={() => navigate('privacy')} onOpenTerms={() => navigate('terms')}
           />
         )}
         {page === 'userProfile' && selectedUserId && (
