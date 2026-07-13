@@ -86,6 +86,10 @@ export default function Settings({ theme, toggleTheme, onBack, onLogout, onOpenS
         More settings — like notification preferences — are coming soon.
       </p>
 
+      <div style={{ marginTop: 20, marginBottom: 4 }}>
+        <InstallPrompt />
+      </div>
+
       <div style={{ marginTop: 16, fontSize: 13 }}>
         <button className="link-btn" style={{ margin: '0 12px 0 0', fontSize: 13 }} onClick={onOpenPrivacy}>Privacy Policy</button>
         <button className="link-btn" style={{ margin: 0, fontSize: 13 }} onClick={onOpenTerms}>Terms &amp; Conditions</button>

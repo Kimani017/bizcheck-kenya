@@ -1,6 +1,8 @@
 import { supabase } from '../supabase'
 import { useEffect, useState } from 'react'
 
+import InstallPrompt from './InstallPrompt'
+
 export default function Landing({ goToAuth }) {
   const [stats, setStats] = useState({ verified: 0, flagged: 0, reports: 0 })
 
@@ -37,6 +39,9 @@ export default function Landing({ goToAuth }) {
           </button>
         </div>
         <p className="landing-note">Free to use · No credit card required · Trusted by Kenyans</p>
+        <div style={{ maxWidth: 280, margin: '14px auto 0' }}>
+          <InstallPrompt />
+        </div>
       </div>
 
       {/* STATS */}
