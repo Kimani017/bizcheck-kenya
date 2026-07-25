@@ -423,3 +423,55 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
   color: var(--text-muted);
   line-height: 1.5;
 }
+
+/* ===== Market subtab toggle buttons (Directory.jsx) =====
+   Fixes a pre-existing bug: .btn-small is green by default, so the
+   doBiz/b2b "active" inline-style trick never visually did anything.
+   This follows the same on/off pattern as .filter-btn / .filter-btn.on. */
+.subtab-btn {
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--text-muted);
+}
+.subtab-btn:hover { background: var(--hover-bg); }
+.subtab-btn.on { background: #1D9E75; color: #fff; border-color: #1D9E75; }
+
+/* ===== Market post photo tiles (ProductsMarketFeed.jsx) =====
+   Used for both the main Products feed grid and the per-business
+   gallery shown after tapping a product. */
+.market-post-tile {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  background: var(--hover-bg);
+  cursor: pointer;
+}
+.market-post-tile img { width: 100%; height: 100%; object-fit: cover; }
+.market-post-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.market-post-caption {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  max-width: 85%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  text-align: right;
+}

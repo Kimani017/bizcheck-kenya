@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import ReportUserModal from './ReportUserModal'
+import ProductCatalogManager from './ProductCatalogManager'
 import { chargeBusinessCredits } from './CreditGate'
 
 function StarDisplay({ rating, size = 14 }) {
@@ -19,6 +20,7 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
   const [replies, setReplies] = useState({}) // { review_id: [replies] }
   const [views, setViews] = useState([])
   const [editing, setEditing] = useState(false)
+  const [showProducts, setShowProducts] = useState(false)
   const [form, setForm] = useState({
     description: business.description || '',
     phone: business.phone || '',
@@ -163,10 +165,24 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
             <span className="muted">Private business dashboard</span>
           </div>
         </div>
-        <button className="btn-small" onClick={() => setEditing(!editing)}>
-          {editing ? 'Cancel' : '✏️ Edit profile'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {biz.plan_type === 'full_control' && biz.plan_status === 'active' && (
+            <button className="btn-small" onClick={() => setShowProducts(!showProducts)}>
+              {showProducts ? 'Close' : '📦 Manage Products'}
+            </button>
+          )}
+          <button className="btn-small" onClick={() => setEditing(!editing)}>
+            {editing ? 'Cancel' : '✏️ Edit profile'}
+          </button>
+        </div>
       </div>
+
+      {/* PRODUCT CATALOG & MARKET — Full Control subscribers only */}
+      {showProducts && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, marginBottom: 20 }}>
+          <ProductCatalogManager businessId={biz.id} />
+        </div>
+      )}
 
       {/* AVAILABLE CREDITS */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>

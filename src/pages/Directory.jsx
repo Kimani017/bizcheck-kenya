@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import { BusinessCard } from './Home'
 import { SkeletonGrid } from './Skeleton'
 import B2BChat from './B2BChat'
+import ProductsMarketFeed from './ProductsMarketFeed'
 import { chargeBusinessCredits } from './CreditGate'
 
 const CATEGORIES = ['All', 'Electronics', 'Fashion', 'Food', 'Phones', 'Home', 'Beauty', 'Other']
@@ -31,21 +32,27 @@ export default function Directory({ onSelectBusiness, goToSubmit, businessMode, 
     <div className="section">
       <div className="section-header-row">
         <h2>Market</h2>
-        {businessMode ? (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className={`btn-small ${marketSubtab === 'doBiz' ? 'active' : ''}`} onClick={() => setMarketSubtab('doBiz')} style={marketSubtab === 'doBiz' ? { background: '#1D9E75', color: '#fff' } : {}}>
-              Do Biz
-            </button>
-            <button className={`btn-small ${marketSubtab === 'b2b' ? 'active' : ''}`} onClick={() => setMarketSubtab('b2b')} style={marketSubtab === 'b2b' ? { background: '#1D9E75', color: '#fff' } : {}}>
-              B2B Messages
-            </button>
-            {marketSubtab !== 'browse' && (
-              <button className="btn-ghost-small" onClick={() => setMarketSubtab('browse')}>← Browse</button>
-            )}
-          </div>
-        ) : (
-          <button className="btn-small" onClick={goToSubmit}>+ List your business</button>
-        )}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className={`subtab-btn ${marketSubtab === 'browse' ? 'on' : ''}`} onClick={() => setMarketSubtab('browse')}>
+            Businesses
+          </button>
+          <button className={`subtab-btn ${marketSubtab === 'products' ? 'on' : ''}`} onClick={() => setMarketSubtab('products')}>
+            Products
+          </button>
+          {businessMode && (
+            <>
+              <button className={`subtab-btn ${marketSubtab === 'doBiz' ? 'on' : ''}`} onClick={() => setMarketSubtab('doBiz')}>
+                Do Biz
+              </button>
+              <button className={`subtab-btn ${marketSubtab === 'b2b' ? 'on' : ''}`} onClick={() => setMarketSubtab('b2b')}>
+                B2B Messages
+              </button>
+            </>
+          )}
+          {!businessMode && (
+            <button className="btn-small" onClick={goToSubmit}>+ List your business</button>
+          )}
+        </div>
       </div>
 
       {/* DO BIZ — search for a business to message */}
@@ -56,6 +63,11 @@ export default function Directory({ onSelectBusiness, goToSubmit, businessMode, 
       {/* B2B MESSAGES — embedded conversation list + chat */}
       {businessMode && marketSubtab === 'b2b' && (
         <B2BChat myBusiness={businessMode} initialTargetBusiness={initialB2BTarget} onBack={() => setMarketSubtab('browse')} onInsufficientCredits={onInsufficientCredits} />
+      )}
+
+      {/* PRODUCTS IN THE MARKET */}
+      {marketSubtab === 'products' && (
+        <ProductsMarketFeed onSelectBusiness={onSelectBusiness} />
       )}
 
       {/* NORMAL BROWSE GRID */}

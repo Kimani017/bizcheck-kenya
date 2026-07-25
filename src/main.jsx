@@ -15,3 +15,11 @@ if ('serviceWorker' in navigator) {
     })
   })
 }
+import PublicStorePage from './pages/PublicStorePage'
+
+const storeMatch = window.location.pathname.match(/^\/store\/([^/]+)$/)
+if (storeMatch) {
+  createRoot(document.getElementById('root')).render(<PublicStorePage businessId={storeMatch[1]} />)
+} else {
+  // ...your existing app render code stays exactly as it is
+}
