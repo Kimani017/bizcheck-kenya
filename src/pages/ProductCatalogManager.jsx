@@ -16,7 +16,7 @@ function loadImageElement(src) {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => resolve(img)
-    img.onerror = reject
+    img.onerror = () => reject(new Error('Could not read this image — it may be an unsupported format like HEIC. Try a JPEG or PNG.'))
     img.src = src
   })
 }
@@ -232,7 +232,8 @@ export default function ProductCatalogManager({ businessId }) {
 
       fetchPhotosFor(productId)
     } catch (err) {
-      setError('Photo upload failed: ' + err.message)
+      console.error('Photo upload error:', err)
+      setError('Photo upload failed: ' + (err?.message || 'Unknown error — check the browser console (F12) for details.'))
     } finally {
       setUploadingFor(null)
     }
