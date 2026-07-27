@@ -2,12 +2,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import PublicStorePage from './pages/PublicStorePage'
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch((err) => {
@@ -15,11 +11,21 @@ if ('serviceWorker' in navigator) {
     })
   })
 }
-import PublicStorePage from './pages/PublicStorePage'
 
 const storeMatch = window.location.pathname.match(/^\/store\/([^/]+)$/)
+
 if (storeMatch) {
-  createRoot(document.getElementById('root')).render(<PublicStorePage businessId={storeMatch[1]} />)
+  // QR code / direct storefront link — render ONLY the public store page.
+  // Skips App entirely, so no auth check, no Supabase session logic runs
+  // for someone who just scanned a code and isn't logging in.
+  createRoot(document.getElementById('root')).render(
+    <PublicStorePage businessId={storeMatch[1]} />
+  )
 } else {
-  // ...your existing app render code stays exactly as it is
+  // Normal app load
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  )
 }
