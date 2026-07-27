@@ -1,3 +1,4 @@
+import InstallPrompt from './InstallPrompt'
 export default function Settings({ theme, toggleTheme, onBack, onLogout, onOpenSupport, onOpenPricing, onOpenPrivacy, onOpenTerms, businessMode, onSwitchToPersonal }) {
   return (
     <div className="section" style={{ maxWidth: 560 }}>
