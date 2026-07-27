@@ -34,6 +34,7 @@ import Support from './pages/Support'
 import './App.css'
 
 const NAV_KEY = 'bizcheck_nav_state'
+const BUSINESS_MODE_KEY = 'bizcheck_business_mode_id'
 
 function App() {
   const [page, setPage] = useState('home')
@@ -156,6 +157,7 @@ function App() {
         sessionStorage.removeItem(NAV_KEY)
         sessionStorage.removeItem('bizcheck_admin_verified')
         sessionStorage.removeItem('bizcheck_account_choice')
+        sessionStorage.removeItem(BUSINESS_MODE_KEY)
         setBusinessMode(null)
         return
       }
@@ -272,7 +274,19 @@ function App() {
     const { data } = await supabase.from('businesses').select('*').eq('owner_id', userId).eq('status', 'verified').not('bizcode', 'is', null)
     setOwnedVerifiedBusinesses(data || [])
     const alreadyChosen = sessionStorage.getItem('bizcheck_account_choice') === 'true'
-    if (data && data.length > 0 && !alreadyChosen) {
+
+    if (alreadyChosen) {
+      // Restore whichever business (if any) was previously chosen this
+      // session, instead of silently falling back to personal on refresh.
+      const savedBusinessId = sessionStorage.getItem(BUSINESS_MODE_KEY)
+      if (savedBusinessId) {
+        const restoredBiz = (data || []).find((b) => b.id === savedBusinessId)
+        if (restoredBiz) setBusinessMode(restoredBiz)
+      }
+      return
+    }
+
+    if (data && data.length > 0) {
       setNeedsAccountChoice(true)
     }
   }
@@ -392,9 +406,10 @@ function App() {
       <AccountChooser
         businesses={ownedVerifiedBusinesses}
         currentUser={user}
-        onChoosePersonal={() => { sessionStorage.setItem('bizcheck_account_choice', 'true'); setNeedsAccountChoice(false) }}
+        onChoosePersonal={() => { sessionStorage.setItem('bizcheck_account_choice', 'true'); sessionStorage.removeItem(BUSINESS_MODE_KEY); setNeedsAccountChoice(false) }}
         onChooseBusiness={(biz) => {
           sessionStorage.setItem('bizcheck_account_choice', 'true')
+          sessionStorage.setItem(BUSINESS_MODE_KEY, biz.id)
           setBusinessMode(biz)
           setNeedsAccountChoice(false)
           setSelectedBusiness(biz)
@@ -554,7 +569,7 @@ function App() {
         {page === 'submit' && <SubmitBusiness currentUser={user} onDone={() => navigate('directory')} />}
         {page === 'admin' && <AdminDashboard onSelectBusiness={openBusiness} onSelectUser={openUserProfile} />}
         {page === 'adminProfiles' && <AdminProfiles onSelectBusiness={openBusiness} onSelectUser={openUserProfile} currentUser={user} />}
-        {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} onLogout={handleLogout} onOpenSupport={() => navigate('support')} onOpenPricing={() => navigate('pricing')} onOpenPrivacy={() => navigate('privacy')} onOpenTerms={() => navigate('terms')} businessMode={businessMode} onSwitchToPersonal={() => { setBusinessMode(null); navigate('home') }} />}
+        {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} onLogout={handleLogout} onOpenSupport={() => navigate('support')} onOpenPricing={() => navigate('pricing')} onOpenPrivacy={() => navigate('privacy')} onOpenTerms={() => navigate('terms')} businessMode={businessMode} onSwitchToPersonal={() => { sessionStorage.removeItem(BUSINESS_MODE_KEY); setBusinessMode(null); navigate('home') }} />}
         {page === 'support' && <Support onBack={goBack} currentUser={user} businessMode={businessMode} onInsufficientCredits={() => setShowCreditModal(true)} />}
         {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
         {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} isAdmin={isAdmin} businessMode={businessMode} onBack={goBack} onInsufficientCredits={() => setShowCreditModal(true)} onMessageBusiness={openB2BChat} />}
