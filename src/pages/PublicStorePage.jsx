@@ -57,7 +57,16 @@ export default function PublicStorePage({ businessId }) {
       const { data, error } = await supabase.functions.invoke('identify-product', {
         body: { business_id: businessId, image_base64: base64, media_type: file.type || 'image/jpeg' },
       })
-      if (error) throw error
+      if (error) {
+        let detail = error.message
+        try {
+          const body = await error.context.json()
+          if (body?.error) detail = body.error
+        } catch {
+          // response body wasn't JSON or couldn't be read — fall back to error.message
+        }
+        throw new Error(detail)
+      }
       if (data?.match) {
         const matched = products.find((p) => p.id === data.match.product_id)
         setScanResult({ product: matched, note: data.match.note })
