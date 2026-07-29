@@ -67,7 +67,7 @@ export default function PublicStorePage({ businessId }) {
       }
     } catch (err) {
       console.error('Visual search failed:', err)
-      setScanResult({ error: true })
+      setScanResult({ error: true, message: err?.message || 'Unknown error' })
     } finally {
       setScanning(false)
     }
@@ -178,7 +178,7 @@ export default function PublicStorePage({ businessId }) {
         )}
         {scanResult?.error && (
           <div style={{ background: '#FCEBEB', border: '1px solid #F7C1C1', borderRadius: 12, padding: '12px 16px', marginBottom: 16, fontSize: 13.5, color: '#A32D2D' }}>
-            Something went wrong scanning that photo — please try again.
+            Something went wrong scanning that photo: <strong>{scanResult.message}</strong>
           </div>
         )}
 
