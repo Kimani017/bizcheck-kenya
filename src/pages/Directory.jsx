@@ -3,7 +3,6 @@ import { supabase } from '../supabase'
 import { BusinessCard } from './Home'
 import { SkeletonGrid } from './Skeleton'
 import B2BChat from './B2BChat'
-import ProductsMarketFeed from './ProductsMarketFeed'
 import { chargeBusinessCredits } from './CreditGate'
 
 const CATEGORIES = ['All', 'Electronics', 'Fashion', 'Food', 'Phones', 'Home', 'Beauty', 'Other']
@@ -36,9 +35,6 @@ export default function Directory({ onSelectBusiness, goToSubmit, businessMode, 
           <button className={`subtab-btn ${marketSubtab === 'browse' ? 'on' : ''}`} onClick={() => setMarketSubtab('browse')}>
             Businesses
           </button>
-          <button className={`subtab-btn ${marketSubtab === 'products' ? 'on' : ''}`} onClick={() => setMarketSubtab('products')}>
-            Products
-          </button>
           {businessMode && (
             <>
               <button className={`subtab-btn ${marketSubtab === 'doBiz' ? 'on' : ''}`} onClick={() => setMarketSubtab('doBiz')}>
@@ -63,11 +59,6 @@ export default function Directory({ onSelectBusiness, goToSubmit, businessMode, 
       {/* B2B MESSAGES — embedded conversation list + chat */}
       {businessMode && marketSubtab === 'b2b' && (
         <B2BChat myBusiness={businessMode} initialTargetBusiness={initialB2BTarget} onBack={() => setMarketSubtab('browse')} onInsufficientCredits={onInsufficientCredits} />
-      )}
-
-      {/* PRODUCTS IN THE MARKET */}
-      {marketSubtab === 'products' && (
-        <ProductsMarketFeed onSelectBusiness={onSelectBusiness} />
       )}
 
       {/* NORMAL BROWSE GRID */}

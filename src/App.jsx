@@ -4,7 +4,7 @@ import Landing from './pages/Landing'
 import Home from './pages/Home'
 import Directory from './pages/Directory'
 import ReportForm from './pages/ReportForm'
-import BusinessPublicProfile from './pages/BusinessPublicProfile'
+import BusinessStorePage from './pages/BusinessStorePage'
 import BusinessPrivateDashboard from './pages/BusinessPrivateDashboard'
 import UserProfile from './pages/UserProfile'
 import Auth from './pages/Auth'
@@ -112,7 +112,7 @@ function App() {
     isRestoringRef.current = true
     try {
       if (navState.authMode) setAuthMode(navState.authMode)
-      if (navState.businessId && ['bizProfile', 'bizDashboard'].includes(navState.page)) {
+      if (navState.businessId && ['bizStore', 'bizDashboard'].includes(navState.page)) {
         const { data: biz } = await supabase.from('businesses').select('*').eq('id', navState.businessId).single()
         if (biz) setSelectedBusiness(biz)
       }
@@ -320,7 +320,7 @@ function App() {
     if (isOwnBusiness) {
       navigate('bizDashboard', { business })
     } else {
-      navigate('bizProfile', { business })
+      navigate('bizStore', { business })
     }
   }
 
@@ -574,8 +574,8 @@ function App() {
         {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
         {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} isAdmin={isAdmin} businessMode={businessMode} onBack={goBack} onInsufficientCredits={() => setShowCreditModal(true)} onMessageBusiness={openB2BChat} />}
         {page === 'b2bOversight' && isSuperadmin && <B2BOversight onBack={goBack} />}
-        {page === 'bizProfile' && selectedBusiness && (
-          <BusinessPublicProfile
+        {page === 'bizStore' && selectedBusiness && (
+          <BusinessStorePage
             business={selectedBusiness}
             onBack={goBack}
             onReport={goToReport}

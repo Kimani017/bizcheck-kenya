@@ -14,7 +14,7 @@ function StarDisplay({ rating, size = 16 }) {
   )
 }
 
-export default function BusinessPublicProfile({ business, onBack, onReport, currentUser, isAdmin, businessMode, onMessageBusiness, onMessageUser, onInsufficientCredits }) {
+export default function BusinessPublicProfile({ business, onBack, onReport, currentUser, isAdmin, businessMode, onMessageBusiness, onMessageUser, onInsufficientCredits, hideHeader }) {
   const [biz, setBiz] = useState(business)
   const [reviews, setReviews] = useState([])
   const [replies, setReplies] = useState({}) // { review_id: [replies] }
@@ -139,7 +139,7 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
   if (biz.status === 'banned') {
     return (
       <div className="section" style={{ maxWidth: 560 }}>
-        <button className="link-btn" onClick={onBack}>← Back</button>
+        {!hideHeader && <button className="link-btn" onClick={onBack}>← Back</button>}
         <div style={{ background: 'var(--surface)', border: '1.5px solid #F7C1C1', borderRadius: 16, padding: '36px 28px', textAlign: 'center', marginTop: 12 }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🚫</div>
           <h2 style={{ marginBottom: 6, color: '#A32D2D' }}>{biz.name}</h2>
@@ -161,58 +161,62 @@ export default function BusinessPublicProfile({ business, onBack, onReport, curr
 
   return (
     <div className="section" style={{ maxWidth: 680 }}>
-      <button className="link-btn" onClick={onBack}>← Back</button>
+      {!hideHeader && (
+        <>
+          <button className="link-btn" onClick={onBack}>← Back</button>
 
-      {/* HEADER */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {biz.photo_url ? (
-            <img src={biz.photo_url} alt={biz.name} style={{ width: 64, height: 64, borderRadius: 14, objectFit: 'cover', flexShrink: 0 }} />
-          ) : (
-            <div style={{ width: 64, height: 64, borderRadius: 14, background: 'var(--hover-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, flexShrink: 0 }}>🏢</div>
-          )}
-          <div>
-            <h2 style={{ fontSize: 24, marginBottom: 4, color: 'var(--text-strong)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-              {biz.name}
-              {biz.admin_reviewed && (
-                <span title="Reviewed and verified by BizCheck admin" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: '#1877F2', flexShrink: 0 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </span>
+          {/* HEADER */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              {biz.photo_url ? (
+                <img src={biz.photo_url} alt={biz.name} style={{ width: 64, height: 64, borderRadius: 14, objectFit: 'cover', flexShrink: 0 }} />
+              ) : (
+                <div style={{ width: 64, height: 64, borderRadius: 14, background: 'var(--hover-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, flexShrink: 0 }}>🏢</div>
               )}
-              {biz.plan_type === 'full_control' && biz.plan_status === 'active' && (
-                <span title="Full Control subscriber — premium business" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: '#9333EA', flexShrink: 0 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </span>
+              <div>
+                <h2 style={{ fontSize: 24, marginBottom: 4, color: 'var(--text-strong)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {biz.name}
+                  {biz.admin_reviewed && (
+                    <span title="Reviewed and verified by BizCheck admin" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: '#1877F2', flexShrink: 0 }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
+                  )}
+                  {biz.plan_type === 'full_control' && biz.plan_status === 'active' && (
+                    <span title="Full Control subscriber — premium business" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: '#9333EA', flexShrink: 0 }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
+                  )}
+                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span className="badge badge-verified" style={{ fontSize: 12 }}>{biz.category}</span>
+                  {biz.location && <span className="muted">📍 {biz.location}</span>}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+              {businessMode && businessMode.id !== biz.id && onMessageBusiness && (
+                <button
+                  onClick={() => onMessageBusiness(biz)}
+                  style={{ background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  💬 B2B Message
+                </button>
               )}
-            </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span className="badge badge-verified" style={{ fontSize: 12 }}>{biz.category}</span>
-              {biz.location && <span className="muted">📍 {biz.location}</span>}
+              {!businessMode && !isAdmin && biz.owner_id && biz.owner_id !== currentUser?.id && onMessageUser && (
+                <button
+                  onClick={messageBusinessAsUser}
+                  style={{ background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  💬 Message this business
+                </button>
+              )}
+              <span className={`badge ${biz.status === 'verified' ? 'badge-verified' : 'badge-danger'}`} style={{ fontSize: 13, padding: '6px 14px' }}>
+                {biz.status === 'verified' ? '✓ Verified' : '⚠ Flagged'}
+              </span>
             </div>
           </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-          {businessMode && businessMode.id !== biz.id && onMessageBusiness && (
-            <button
-              onClick={() => onMessageBusiness(biz)}
-              style={{ background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-            >
-              💬 B2B Message
-            </button>
-          )}
-          {!businessMode && !isAdmin && biz.owner_id && biz.owner_id !== currentUser?.id && onMessageUser && (
-            <button
-              onClick={messageBusinessAsUser}
-              style={{ background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-            >
-              💬 Message this business
-            </button>
-          )}
-          <span className={`badge ${biz.status === 'verified' ? 'badge-verified' : 'badge-danger'}`} style={{ fontSize: 13, padding: '6px 14px' }}>
-            {biz.status === 'verified' ? '✓ Verified' : '⚠ Flagged'}
-          </span>
-        </div>
-      </div>
+        </>
+      )}
 
       {/* RATINGS SUMMARY */}
       <div className="profile-ratings-bar">
