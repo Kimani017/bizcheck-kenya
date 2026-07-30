@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
+import RubiksLoader from './RubiksLoader'
 
 const GREEN = '#1D9E75'
 const GREEN_DARK = '#0F6E56'
@@ -98,7 +99,7 @@ export default function PublicStorePage({ businessId }) {
   })
 
   if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center' }} className="muted">Loading store...</div>
+    return <RubiksLoader label="Loading store…" />
   }
 
   if (!business) {

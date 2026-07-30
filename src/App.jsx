@@ -5,6 +5,7 @@ import Home from './pages/Home'
 import Directory from './pages/Directory'
 import ReportForm from './pages/ReportForm'
 import BusinessStorePage from './pages/BusinessStorePage'
+import RubiksLoader from './pages/RubiksLoader'
 import BusinessPrivateDashboard from './pages/BusinessPrivateDashboard'
 import UserProfile from './pages/UserProfile'
 import Auth from './pages/Auth'
@@ -367,7 +368,7 @@ function App() {
   if (checkingAuth || restoring) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg)' }}>
-        <div style={{ color: '#1D9E75', fontSize: 16 }}>Loading…</div>
+        <RubiksLoader label="Loading BizCheck…" />
       </div>
     )
   }
@@ -546,7 +547,7 @@ function App() {
       )}
 
       <div className="main-content">
-        {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
+        {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} currentUser={user} onInsufficientCredits={() => setShowCreditModal(true)} />}
         {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} businessMode={businessMode} initialMarketSubtab={b2bTargetBusiness ? 'b2b' : 'browse'} initialB2BTarget={b2bTargetBusiness} onInsufficientCredits={() => setShowCreditModal(true)} />}
         {page === 'report' && (
           businessMode

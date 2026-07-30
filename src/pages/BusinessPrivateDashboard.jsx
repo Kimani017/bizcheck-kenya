@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import ReportUserModal from './ReportUserModal'
 import ProductCatalogManager from './ProductCatalogManager'
+import RubiksLoader from './RubiksLoader'
 import { chargeBusinessCredits } from './CreditGate'
 
 function StarDisplay({ rating, size = 14 }) {
@@ -569,7 +570,7 @@ function BannedBusinessScreen({ business, currentUser, onBack }) {
         </p>
 
         {!checked ? (
-          <p className="muted">Loading…</p>
+          <RubiksLoader label="Checking status…" />
         ) : existingRequest ? (
           <div style={{ background: '#fff', borderRadius: 12, padding: '16px 20px', textAlign: 'left' }}>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>
