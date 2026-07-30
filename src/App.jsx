@@ -6,6 +6,7 @@ import Directory from './pages/Directory'
 import ReportForm from './pages/ReportForm'
 import BusinessStorePage from './pages/BusinessStorePage'
 import RubiksLoader from './pages/RubiksLoader'
+import FeedTab from './pages/FeedTab'
 import BusinessPrivateDashboard from './pages/BusinessPrivateDashboard'
 import UserProfile from './pages/UserProfile'
 import Auth from './pages/Auth'
@@ -36,6 +37,9 @@ import './App.css'
 
 const NAV_KEY = 'bizcheck_nav_state'
 const BUSINESS_MODE_KEY = 'bizcheck_business_mode_id'
+// How long the app remembers where you were after you leave it. Within this
+// window you come back to the same page; after it, you land on Home.
+const NAV_IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 
 function App() {
   const [page, setPage] = useState('home')
@@ -100,7 +104,7 @@ function App() {
       authMode: mode !== undefined ? mode : authMode,
     }
 
-    sessionStorage.setItem(NAV_KEY, JSON.stringify(navState))
+    localStorage.setItem(NAV_KEY, JSON.stringify({ ...navState, savedAt: Date.now() }))
     const url = `#${newPage}`
     if (replace) window.history.replaceState(navState, '', url)
     else window.history.pushState(navState, '', url)
@@ -155,10 +159,10 @@ function App() {
         setNeedsUsername(false)
         setNeedsLoginOtp(false)
         setNeedsAdminIdCheck(false)
-        sessionStorage.removeItem(NAV_KEY)
+        localStorage.removeItem(NAV_KEY)
         sessionStorage.removeItem('bizcheck_admin_verified')
-        sessionStorage.removeItem('bizcheck_account_choice')
-        sessionStorage.removeItem(BUSINESS_MODE_KEY)
+        localStorage.removeItem('bizcheck_account_choice')
+        localStorage.removeItem(BUSINESS_MODE_KEY)
         setBusinessMode(null)
         return
       }
@@ -175,7 +179,7 @@ function App() {
           setSelectedBusiness(null)
           setSelectedUserId(null)
           setPage('home')
-          sessionStorage.setItem(NAV_KEY, JSON.stringify({ page: 'home' }))
+          localStorage.setItem(NAV_KEY, JSON.stringify({ page: 'home', savedAt: Date.now() }))
           window.history.replaceState({ page: 'home' }, '', '#home')
 
           // Check if this account is admin/superadmin — if so, require
@@ -232,12 +236,22 @@ function App() {
     }
     setCheckingAuth(false)
 
-    const saved = sessionStorage.getItem(NAV_KEY)
+    const saved = localStorage.getItem(NAV_KEY)
     if (saved) {
       try {
         const navState = JSON.parse(saved)
-        await restoreNavState(navState)
-        window.history.replaceState(navState, '', `#${navState.page}`)
+        const idleFor = Date.now() - (navState.savedAt || 0)
+
+        if (idleFor > NAV_IDLE_TIMEOUT_MS) {
+          // Been away a while — start fresh on Home rather than dropping
+          // them back into a stale page.
+          localStorage.removeItem(NAV_KEY)
+          setPage('home')
+          window.history.replaceState({ page: 'home' }, '', '#home')
+        } else {
+          await restoreNavState(navState)
+          window.history.replaceState(navState, '', `#${navState.page}`)
+        }
       } catch (e) {
         console.error('Failed to restore nav state:', e)
       }
@@ -274,12 +288,12 @@ function App() {
   async function checkAccountChoice(userId) {
     const { data } = await supabase.from('businesses').select('*').eq('owner_id', userId).eq('status', 'verified').not('bizcode', 'is', null)
     setOwnedVerifiedBusinesses(data || [])
-    const alreadyChosen = sessionStorage.getItem('bizcheck_account_choice') === 'true'
+    const alreadyChosen = localStorage.getItem('bizcheck_account_choice') === 'true'
 
     if (alreadyChosen) {
       // Restore whichever business (if any) was previously chosen this
       // session, instead of silently falling back to personal on refresh.
-      const savedBusinessId = sessionStorage.getItem(BUSINESS_MODE_KEY)
+      const savedBusinessId = localStorage.getItem(BUSINESS_MODE_KEY)
       if (savedBusinessId) {
         const restoredBiz = (data || []).find((b) => b.id === savedBusinessId)
         if (restoredBiz) setBusinessMode(restoredBiz)
@@ -361,7 +375,7 @@ function App() {
     await supabase.auth.signOut()
     setUser(null)
     setIsAdmin(false)
-    sessionStorage.removeItem(NAV_KEY)
+    localStorage.removeItem(NAV_KEY)
     navigate('home', { business: null, userId: null })
   }
 
@@ -407,10 +421,10 @@ function App() {
       <AccountChooser
         businesses={ownedVerifiedBusinesses}
         currentUser={user}
-        onChoosePersonal={() => { sessionStorage.setItem('bizcheck_account_choice', 'true'); sessionStorage.removeItem(BUSINESS_MODE_KEY); setNeedsAccountChoice(false) }}
+        onChoosePersonal={() => { localStorage.setItem('bizcheck_account_choice', 'true'); localStorage.removeItem(BUSINESS_MODE_KEY); setNeedsAccountChoice(false) }}
         onChooseBusiness={(biz) => {
-          sessionStorage.setItem('bizcheck_account_choice', 'true')
-          sessionStorage.setItem(BUSINESS_MODE_KEY, biz.id)
+          localStorage.setItem('bizcheck_account_choice', 'true')
+          localStorage.setItem(BUSINESS_MODE_KEY, biz.id)
           setBusinessMode(biz)
           setNeedsAccountChoice(false)
           setSelectedBusiness(biz)
@@ -471,6 +485,7 @@ function App() {
 
           <div className="nav-links nav-links-center">
             <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button>
+            <button className={page === 'feed' ? 'active' : ''} onClick={() => navigate('feed')}>Feed</button>
             <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Market</button>
             {isSuperadmin ? (
               <button className={page === 'b2bOversight' ? 'active' : ''} onClick={() => navigate('b2bOversight')}>B2B</button>
@@ -520,6 +535,7 @@ function App() {
             </div>
             <div className="mobile-menu-links">
               <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>Home</button>
+              <button className={page === 'feed' ? 'active' : ''} onClick={() => navigate('feed')}>Feed</button>
               <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Market</button>
               {isSuperadmin ? (
               <button className={page === 'b2bOversight' ? 'active' : ''} onClick={() => navigate('b2bOversight')}>B2B</button>
@@ -543,11 +559,40 @@ function App() {
               {isSuperadmin && <button className={page === 'pleads' ? 'active' : ''} onClick={() => navigate('pleads')}>Pleads</button>}
             </div>
           </div>
+
+          {/* BOTTOM NAV BAR — mobile only */}
+          <nav className="bottom-nav">
+            <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>
+              <span>🏠</span><label>Home</label>
+            </button>
+            <button className={page === 'feed' ? 'active' : ''} onClick={() => navigate('feed')}>
+              <span>📰</span><label>Feed</label>
+            </button>
+            <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>
+              <span>📦</span><label>Market</label>
+            </button>
+            <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>
+              <span>🚫</span><label>Report</label>
+            </button>
+            <button className={page === 'messages' ? 'active' : ''} onClick={() => openMessages()}>
+              <span>💬</span><label>Messages</label>
+            </button>
+            {businessMode ? (
+              <button className={page === 'bizDashboard' ? 'active' : ''} onClick={() => { setSelectedBusiness(businessMode); navigate('bizDashboard', { business: businessMode }) }}>
+                <span>🏢</span><label>Business</label>
+              </button>
+            ) : (
+              <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>
+                <span>👤</span><label>Profile</label>
+              </button>
+            )}
+          </nav>
         </>
       )}
 
       <div className="main-content">
-        {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} currentUser={user} onInsufficientCredits={() => setShowCreditModal(true)} />}
+        {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
+        {page === 'feed' && <FeedTab onSelectBusiness={openBusiness} currentUser={user} />}
         {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} businessMode={businessMode} initialMarketSubtab={b2bTargetBusiness ? 'b2b' : 'browse'} initialB2BTarget={b2bTargetBusiness} onInsufficientCredits={() => setShowCreditModal(true)} />}
         {page === 'report' && (
           businessMode
@@ -570,7 +615,7 @@ function App() {
         {page === 'submit' && <SubmitBusiness currentUser={user} onDone={() => navigate('directory')} />}
         {page === 'admin' && <AdminDashboard onSelectBusiness={openBusiness} onSelectUser={openUserProfile} />}
         {page === 'adminProfiles' && <AdminProfiles onSelectBusiness={openBusiness} onSelectUser={openUserProfile} currentUser={user} />}
-        {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} onLogout={handleLogout} onOpenSupport={() => navigate('support')} onOpenPricing={() => navigate('pricing')} onOpenPrivacy={() => navigate('privacy')} onOpenTerms={() => navigate('terms')} businessMode={businessMode} onSwitchToPersonal={() => { sessionStorage.removeItem(BUSINESS_MODE_KEY); setBusinessMode(null); navigate('home') }} />}
+        {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} onLogout={handleLogout} onOpenSupport={() => navigate('support')} onOpenPricing={() => navigate('pricing')} onOpenPrivacy={() => navigate('privacy')} onOpenTerms={() => navigate('terms')} businessMode={businessMode} onSwitchToPersonal={() => { localStorage.removeItem(BUSINESS_MODE_KEY); setBusinessMode(null); navigate('home') }} />}
         {page === 'support' && <Support onBack={goBack} currentUser={user} businessMode={businessMode} onInsufficientCredits={() => setShowCreditModal(true)} />}
         {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
         {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} isAdmin={isAdmin} businessMode={businessMode} onBack={goBack} onInsufficientCredits={() => setShowCreditModal(true)} onMessageBusiness={openB2BChat} />}

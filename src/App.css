@@ -475,3 +475,60 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; c
   border-radius: 8px;
   text-align: right;
 }
+/* ===== BOTTOM NAVIGATION BAR (mobile only) ===== */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 6px 2px calc(6px + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+}
+.bottom-nav button {
+  flex: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0;
+  color: var(--text-muted);
+}
+.bottom-nav button span { font-size: 19px; line-height: 1; }
+.bottom-nav button label {
+  font-size: 9.5px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.1px;
+}
+.bottom-nav button.active { color: #1D9E75; }
+
+/* Keep page content clear of the fixed bottom bar */
+@media (max-width: 768px) {
+  .main-content { padding-bottom: 68px; }
+}
+
+/* ===== LEFT ALIGNMENT =====
+   BizCheck reads left-aligned throughout. Centering is kept only where it's
+   structural (the loader, empty states, the bottom nav icons). */
+.section,
+.section h1,
+.section h2,
+.section h3,
+.section h4,
+.section p,
+.hero,
+.hero h1,
+.hero p,
+.biz-card,
+.review-card,
+.detail-row {
+  text-align: left;
+}

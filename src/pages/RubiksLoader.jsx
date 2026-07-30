@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 
 const GREEN = '#1D9E75'
 const DARK = '#12362c'
-const CHECK_SVG = '<svg width="8" height="8" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+const CHECK_SVG = '<svg width="6" height="6" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 
 // Real 3D Rubik's cube (27 pieces, true layer-twisting, no libraries).
 // Every visible face shows a static BizCheck badge (green + checkmark) —
@@ -25,12 +25,12 @@ export default function RubiksLoader({ label = 'Loading…' }) {
           const el = document.createElement('div')
           el.className = 'rl-cubie'
           const faces = [
-            { show: z === 1, t: 'translateZ(7px)' },
-            { show: z === -1, t: 'rotateY(180deg) translateZ(7px)' },
-            { show: x === 1, t: 'rotateY(90deg) translateZ(7px)' },
-            { show: x === -1, t: 'rotateY(-90deg) translateZ(7px)' },
-            { show: y === -1, t: 'rotateX(90deg) translateZ(7px)' },
-            { show: y === 1, t: 'rotateX(-90deg) translateZ(7px)' },
+            { show: z === 1, t: 'translateZ(5px)' },
+            { show: z === -1, t: 'rotateY(180deg) translateZ(5px)' },
+            { show: x === 1, t: 'rotateY(90deg) translateZ(5px)' },
+            { show: x === -1, t: 'rotateY(-90deg) translateZ(5px)' },
+            { show: y === -1, t: 'rotateX(90deg) translateZ(5px)' },
+            { show: y === 1, t: 'rotateX(-90deg) translateZ(5px)' },
           ]
           faces.forEach((f) => {
             const face = document.createElement('div')
@@ -40,7 +40,7 @@ export default function RubiksLoader({ label = 'Loading…' }) {
             if (f.show) face.innerHTML = CHECK_SVG
             el.appendChild(face)
           })
-          el.style.transform = `rotateY(var(--u,0deg)) rotateX(var(--r,0deg)) rotateZ(var(--f,0deg)) translate3d(${x * 16}px, ${y * 16}px, ${z * 16}px)`
+          el.style.transform = `rotateY(var(--u,0deg)) rotateX(var(--r,0deg)) rotateZ(var(--f,0deg)) translate3d(${x * 11}px, ${y * 11}px, ${z * 11}px)`
           rubik.appendChild(el)
           cubies.push({ el, x, y, z })
         }
@@ -124,18 +124,18 @@ export default function RubiksLoader({ label = 'Loading…' }) {
         @property --u { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
         @property --r { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
         @property --f { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
-        .rl-scene { perspective: 500px; width: 64px; height: 64px; margin: 0 auto; }
+        .rl-scene { perspective: 400px; width: 44px; height: 44px; margin: 0 auto; }
         .rl-rubik {
-          width: 64px; height: 64px; position: relative;
+          width: 44px; height: 44px; position: relative;
           transform-style: preserve-3d;
           transform: rotateX(-24deg) rotateY(28deg);
         }
         .rl-cubie {
-          width: 14px; height: 14px; position: absolute; top: 25px; left: 25px;
+          width: 10px; height: 10px; position: absolute; top: 17px; left: 17px;
           transform-style: preserve-3d;
         }
         .rl-face {
-          position: absolute; width: 14px; height: 14px;
+          position: absolute; width: 10px; height: 10px;
           display: flex; align-items: center; justify-content: center;
           border: 0.5px solid #0b241d;
         }

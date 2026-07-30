@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 import QRCode from 'qrcode'
-import imageCompression from 'browser-image-compression'
 import { bmvbhash } from 'blockhash-core'
 import { supabase } from '../supabase'
 import RubiksLoader from './RubiksLoader'
@@ -11,40 +10,88 @@ const DUPLICATE_THRESHOLD = 10
 const GREEN = '#1D9E75'
 const GREEN_DARK = '#0F6E56'
 
-async function compressImage(file) {
+const MAX_DIMENSION = 1200
+const JPEG_QUALITY = 0.8
+
+// Decode a file into a bitmap ONCE, then reuse that single decode for both
+// compression and fingerprinting. Decoding twice was exhausting memory on
+// phones, which is what made uploads fail after the first photo.
+async function decodeImage(file) {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      // imageOrientation honours EXIF rotation so phone photos aren't sideways
+      return await createImageBitmap(file, { imageOrientation: 'from-image' })
+    } catch {
+      // fall through to the <img> path below
+    }
+  }
+  const objectUrl = URL.createObjectURL(file)
   try {
-    return await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1200, useWebWorker: true })
-  } catch (err) {
-    // Some Android browsers fail silently/oddly when compression runs in a
-    // background Web Worker — retry once on the main thread instead.
-    console.warn('Compression via Web Worker failed, retrying without it:', err)
-    return await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1200, useWebWorker: false })
+    return await new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => resolve(img)
+      img.onerror = () => reject(new Error('Could not read this image — it may be an unsupported format like HEIC. Try a JPEG or PNG.'))
+      img.src = objectUrl
+    })
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
   }
 }
 
-function loadImageElement(src) {
+// Draw the decoded image onto a canvas, scaled down to MAX_DIMENSION.
+// This canvas is then used for BOTH the compressed upload and the hash.
+function drawToCanvas(source) {
+  const srcWidth = source.width
+  const srcHeight = source.height
+  const scale = Math.min(1, MAX_DIMENSION / Math.max(srcWidth, srcHeight))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(srcWidth * scale)
+  canvas.height = Math.round(srcHeight * scale)
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(source, 0, 0, canvas.width, canvas.height)
+  return canvas
+}
+
+function canvasToFile(canvas, originalName) {
   return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = () => reject(new Error('Could not read this image — it may be an unsupported format like HEIC. Try a JPEG or PNG.'))
-    img.src = src
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) { reject(new Error('Could not compress this image.')); return }
+        const baseName = originalName.replace(/\.[^.]+$/, '')
+        resolve(new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' }))
+      },
+      'image/jpeg',
+      JPEG_QUALITY
+    )
   })
 }
 
-async function computePhash(file) {
-  const objectUrl = URL.createObjectURL(file)
+function hashFromCanvas(canvas) {
+  const ctx = canvas.getContext('2d')
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  return bmvbhash(imageData, HASH_BITS)
+}
+
+// One decode, one canvas -> both the compressed file and its fingerprint.
+async function processImage(file) {
+  const decoded = await decodeImage(file)
+  const canvas = drawToCanvas(decoded)
+
+  let phash = null
   try {
-    const img = await loadImageElement(objectUrl)
-    const canvas = document.createElement('canvas')
-    canvas.width = img.width
-    canvas.height = img.height
-    const ctx = canvas.getContext('2d')
-    ctx.drawImage(img, 0, 0)
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    return bmvbhash(imageData, HASH_BITS)
-  } finally {
-    URL.revokeObjectURL(objectUrl)
+    phash = hashFromCanvas(canvas)
+  } catch (err) {
+    // Fingerprinting is only used for duplicate detection — if it fails,
+    // carry on without the duplicate check rather than blocking the upload.
+    console.warn('Could not fingerprint this photo, skipping duplicate check:', err)
   }
+
+  const compressed = await canvasToFile(canvas, file.name)
+
+  // Free the bitmap promptly — matters on lower-memory phones
+  if (decoded.close) decoded.close()
+
+  return { compressed, phash }
 }
 
 function hammingDistance(hashA, hashB) {
@@ -223,21 +270,18 @@ export default function ProductCatalogManager({ businessId }) {
       let knownHashes = existing.map((p) => p.phash).filter(Boolean)
 
       for (const rawFile of files) {
-        let compressed
+        let compressed, phash
         try {
-          compressed = await compressImage(rawFile)
+          const processed = await processImage(rawFile)
+          compressed = processed.compressed
+          phash = processed.phash
         } catch (err) {
-          throw new Error('Could not compress this photo: ' + (err?.message || 'unknown compression error'))
+          throw new Error('Could not prepare this photo: ' + (err?.message || 'unknown error'))
         }
 
-        let phash
-        try {
-          phash = await computePhash(compressed)
-        } catch (err) {
-          throw new Error('Could not process this photo: ' + (err?.message || 'unknown error while checking for duplicates'))
-        }
-
-        const closest = knownHashes.reduce((min, h) => Math.min(min, hammingDistance(phash, h)), Infinity)
+        const closest = phash
+          ? knownHashes.reduce((min, h) => Math.min(min, hammingDistance(phash, h)), Infinity)
+          : Infinity
         const isDuplicate = closest <= DUPLICATE_THRESHOLD
 
         if (isDuplicate) {
@@ -245,7 +289,7 @@ export default function ProductCatalogManager({ businessId }) {
           if (!proceed) continue
         }
 
-        const path = `${businessId}/${productId}/${Date.now()}-${rawFile.name}`
+        const path = `${businessId}/${productId}/${Date.now()}-${compressed.name}`
         const { error: uploadError } = await supabase.storage.from('product-photos').upload(path, compressed, { upsert: true })
         if (uploadError) throw uploadError
 
@@ -253,7 +297,7 @@ export default function ProductCatalogManager({ businessId }) {
           product_id: productId, business_id: businessId, photo_url: path, phash, is_duplicate: isDuplicate,
         })
         if (insertError) throw insertError
-        knownHashes = [...knownHashes, phash]
+        if (phash) knownHashes = [...knownHashes, phash]
       }
 
       fetchPhotosFor(productId)
