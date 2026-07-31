@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import RubiksLoader from './RubiksLoader'
+import Icon from './Icon'
 
 // Business-side view of their own store posts: same cards customers see,
 // plus view/like counts, delete, and replying to comments.
@@ -111,7 +112,7 @@ export default function BusinessStoreTab({ business, currentUser, onOpenCatalog 
           <p className="muted" style={{ fontSize: 13 }}>How customers see your products, with your own numbers on each.</p>
         </div>
         <button className="btn-small" style={{ background: '#1D9E75', color: '#fff' }} onClick={onOpenCatalog}>
-          + Add a post
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon.Plus size={15} /> Add a post</span>
         </button>
       </div>
 
@@ -155,13 +156,13 @@ export default function BusinessStoreTab({ business, currentUser, onOpenCatalog 
                   {post.caption && <p style={{ fontSize: 13.5, marginBottom: 10 }}>{post.caption}</p>}
 
                   <div style={{ display: 'flex', gap: 16, alignItems: 'center', fontSize: 13, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                    <span>👁 {s.views} views</span>
-                    <span>👍 {s.likes} likes</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon.Eye size={16} /> {s.views} views</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon.Like size={16} /> {s.likes} likes</span>
                     <button
                       onClick={() => toggleComments(post.id)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1D9E75', fontSize: 13, fontWeight: 600, padding: 0 }}
                     >
-                      💬 {s.comments} comments
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon.Comment size={16} /> {s.comments} comments</span>
                     </button>
                     <button
                       onClick={() => deletePost(post.id)}

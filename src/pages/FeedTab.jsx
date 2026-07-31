@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import RubiksLoader from './RubiksLoader'
+import Icon from './Icon'
 
 const PAGE_SIZE = 8
 
@@ -214,7 +215,7 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
           title="Scan a product with your camera"
           style={{ width: 42, height: 42, borderRadius: 10, border: 'none', flexShrink: 0, background: scanning ? 'var(--hover-bg)' : '#1D9E75', color: '#fff', fontSize: 18, cursor: scanning ? 'default' : 'pointer' }}
         >
-          {scanning ? '…' : '📷'}
+          {scanning ? '…' : <Icon.Camera size={19} />}
         </button>
         <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleCameraCapture} />
       </div>
@@ -284,13 +285,13 @@ function FeedPost({ post, like, saved, comment, currentUser, onToggleLike, onTog
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '10px 14px 4px' }}>
         <button onClick={onToggleLike} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', gap: 5, color: like.liked ? '#1D9E75' : 'var(--text)', padding: 0 }}>
-          👍 <span style={{ fontSize: 13 }}>{like.count}</span>
+          <Icon.Like size={19} /> <span style={{ fontSize: 13 }}>{like.count}</span>
         </button>
         <button onClick={onToggleComments} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', gap: 5, padding: 0 }}>
-          💬 <span style={{ fontSize: 13 }}>{comment.count}</span>
+          <Icon.Comment size={19} /> <span style={{ fontSize: 13 }}>{comment.count}</span>
         </button>
         <button onClick={onToggleSave} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, marginLeft: 'auto', color: saved ? '#1D9E75' : 'var(--text)', padding: 0 }}>
-          🔖
+          <Icon.Save size={19} />
         </button>
       </div>
 

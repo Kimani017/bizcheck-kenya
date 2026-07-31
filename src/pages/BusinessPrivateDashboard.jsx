@@ -5,6 +5,7 @@ import ProductCatalogManager from './ProductCatalogManager'
 import BusinessStoreTab from './BusinessStoreTab'
 import BusinessDashboardTab from './BusinessDashboardTab'
 import BusinessActivitiesTab from './BusinessActivitiesTab'
+import Icon from './Icon'
 import RubiksLoader from './RubiksLoader'
 import { chargeBusinessCredits } from './CreditGate'
 
@@ -173,21 +174,26 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
         <div style={{ display: 'flex', gap: 8 }}>
           {biz.plan_type === 'full_control' && biz.plan_status === 'active' && (
             <button className="btn-small" onClick={() => setShowProducts(!showProducts)}>
-              {showProducts ? 'Close' : '📦 Manage Products'}
+              {showProducts ? 'Close' : 'Manage Products'}
             </button>
           )}
-          <button className="btn-small" onClick={() => setEditing(!editing)}>
-            {editing ? 'Cancel' : '✏️ Edit profile'}
-          </button>
         </div>
       </div>
 
       {/* SUBTAB SWITCHER */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 12, overflowX: 'auto' }}>
-        <button className={`subtab-btn ${activeTab === 'store' ? 'on' : ''}`} onClick={() => setActiveTab('store')}>Store</button>
-        <button className={`subtab-btn ${activeTab === 'dashboard' ? 'on' : ''}`} onClick={() => setActiveTab('dashboard')}>Dashboard</button>
-        <button className={`subtab-btn ${activeTab === 'details' ? 'on' : ''}`} onClick={() => setActiveTab('details')}>Business Details</button>
-        <button className={`subtab-btn ${activeTab === 'activities' ? 'on' : ''}`} onClick={() => setActiveTab('activities')}>Activities</button>
+        <button className={`subtab-btn ${activeTab === 'store' ? 'on' : ''}`} onClick={() => setActiveTab('store')} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+          <Icon.Store size={16} /> Store
+        </button>
+        <button className={`subtab-btn ${activeTab === 'dashboard' ? 'on' : ''}`} onClick={() => setActiveTab('dashboard')} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+          <Icon.Dashboard size={16} /> Dashboard
+        </button>
+        <button className={`subtab-btn ${activeTab === 'details' ? 'on' : ''}`} onClick={() => setActiveTab('details')} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+          <Icon.Details size={16} /> Details
+        </button>
+        <button className={`subtab-btn ${activeTab === 'activities' ? 'on' : ''}`} onClick={() => setActiveTab('activities')} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+          <Icon.Activities size={16} /> Activities
+        </button>
       </div>
 
       {/* STORE TAB */}
@@ -214,6 +220,12 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
 
       {activeTab === 'details' && (
       <>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 16 }}>
+        <button className="btn-small" onClick={() => setEditing(!editing)}>
+          {editing ? 'Cancel editing' : 'Edit profile'}
+        </button>
+      </div>
 
       {/* AVAILABLE CREDITS */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>

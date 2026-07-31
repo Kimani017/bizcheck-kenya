@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import RubiksLoader from './RubiksLoader'
+import Icon from './Icon'
 
 const GREEN = '#1D9E75'
 const GREEN_DARK = '#0F6E56'
@@ -174,7 +175,7 @@ export default function PublicStorePage({ businessId }) {
               cursor: scanning ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
-            {scanning ? '…' : '📷'}
+            {scanning ? '…' : <Icon.Camera size={19} />}
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleCameraCapture} />
         </div>

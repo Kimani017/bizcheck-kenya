@@ -7,6 +7,7 @@ import ReportForm from './pages/ReportForm'
 import BusinessStorePage from './pages/BusinessStorePage'
 import RubiksLoader from './pages/RubiksLoader'
 import FeedTab from './pages/FeedTab'
+import Icon from './pages/Icon'
 import BusinessPrivateDashboard from './pages/BusinessPrivateDashboard'
 import UserProfile from './pages/UserProfile'
 import Auth from './pages/Auth'
@@ -503,7 +504,7 @@ function App() {
               <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>
             )}
             <button className={page === 'messages' ? 'active' : ''} onClick={() => openMessages()}>Messages</button>
-            <button className={page === 'notifications' ? 'active' : ''} onClick={() => navigate('notifications')}>🔔</button>
+            <button className={page === 'notifications' ? 'active' : ''} onClick={() => navigate('notifications')} aria-label="Notifications"><Icon.Bell size={19} /></button>
           </div>
 
           <div className="nav-links nav-links-right">
@@ -515,7 +516,7 @@ function App() {
         // MOBILE — hamburger button (left) + vertical slide-in drawer
         <>
           <div className="mobile-topbar">
-            <button className="hamburger-btn" onClick={() => setMobileMenuOpen(true)} aria-label="Open menu">☰</button>
+            <button className="hamburger-btn" onClick={() => setMobileMenuOpen(true)} aria-label="Open menu"><Icon.Menu size={22} /></button>
             <div className="logo" onClick={() => navigate('home')}>
               <span className="logo-dot"></span> BizCheck Kenya
             </div>
@@ -553,7 +554,7 @@ function App() {
                 <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>
               )}
               <button className={page === 'messages' ? 'active' : ''} onClick={() => openMessages()}>Messages</button>
-            <button className={page === 'notifications' ? 'active' : ''} onClick={() => navigate('notifications')}>🔔</button>
+            <button className={page === 'notifications' ? 'active' : ''} onClick={() => navigate('notifications')} aria-label="Notifications"><Icon.Bell size={19} /></button>
               <div className="mobile-menu-divider" />
               <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
               {isSuperadmin && <button className={page === 'pleads' ? 'active' : ''} onClick={() => navigate('pleads')}>Pleads</button>}
@@ -563,27 +564,27 @@ function App() {
           {/* BOTTOM NAV BAR — mobile only */}
           <nav className="bottom-nav">
             <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>
-              <span>🏠</span><label>Home</label>
+              <Icon.Home size={21} /><label>Home</label>
             </button>
             <button className={page === 'feed' ? 'active' : ''} onClick={() => navigate('feed')}>
-              <span>📰</span><label>Feed</label>
+              <Icon.Feed size={21} /><label>Feed</label>
             </button>
             <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>
-              <span>📦</span><label>Market</label>
+              <Icon.Market size={21} /><label>Market</label>
             </button>
             <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>
-              <span>🚫</span><label>Report</label>
+              <Icon.Report size={21} /><label>Report</label>
             </button>
             <button className={page === 'messages' ? 'active' : ''} onClick={() => openMessages()}>
-              <span>💬</span><label>Messages</label>
+              <Icon.Messages size={21} /><label>Messages</label>
             </button>
             {businessMode ? (
               <button className={page === 'bizDashboard' ? 'active' : ''} onClick={() => { setSelectedBusiness(businessMode); navigate('bizDashboard', { business: businessMode }) }}>
-                <span>🏢</span><label>Business</label>
+                <Icon.Business size={21} /><label>Business</label>
               </button>
             ) : (
               <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>
-                <span>👤</span><label>Profile</label>
+                <Icon.Profile size={21} /><label>Profile</label>
               </button>
             )}
           </nav>

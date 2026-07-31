@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import BusinessPublicProfile from './BusinessPublicProfile'
 import RubiksLoader from './RubiksLoader'
+import Icon from './Icon'
 
 // The one destination for viewing any business, from anywhere in the app.
 // Pass the same props you'd give BusinessPublicProfile directly — this
@@ -56,17 +57,17 @@ export default function BusinessStorePage({
           onClick={() => setActiveTab('display')}
           className={`subtab-btn ${activeTab === 'display' ? 'on' : ''}`}
           aria-label="Display"
-          style={{ fontSize: 18, padding: '8px 20px' }}
+          style={{ padding: '8px 22px', display: 'flex', alignItems: 'center' }}
         >
-          📦
+          <Icon.Grid size={18} />
         </button>
         <button
           onClick={() => setActiveTab('info')}
           className={`subtab-btn ${activeTab === 'info' ? 'on' : ''}`}
           aria-label="Business info and reviews"
-          style={{ fontSize: 18, padding: '8px 20px' }}
+          style={{ padding: '8px 22px', display: 'flex', alignItems: 'center' }}
         >
-          🧩
+          <Icon.Info size={18} />
         </button>
       </div>
 

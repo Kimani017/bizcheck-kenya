@@ -3,6 +3,7 @@ import QRCode from 'qrcode'
 import { bmvbhash } from 'blockhash-core'
 import { supabase } from '../supabase'
 import RubiksLoader from './RubiksLoader'
+import Icon from './Icon'
 
 const STORE_BASE_URL = 'https://www.bizcheckkenya.com/store'
 const HASH_BITS = 16
@@ -380,9 +381,9 @@ export default function ProductCatalogManager({ businessId }) {
       {activeTab === 'overview' && (
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
-            <StatCard icon="📦" label="Products" value={stats.products} />
-            <StatCard icon="🛍️" label="Live on Market" value={stats.marketPosts} accent />
-            <StatCard icon="📱" label="QR Scans" value={stats.scans} />
+            <StatCard icon={<Icon.Details size={17} />} label="Products" value={stats.products} />
+            <StatCard icon={<Icon.Store size={17} />} label="Live on Market" value={stats.marketPosts} accent />
+            <StatCard icon={<Icon.Eye size={17} />} label="QR Scans" value={stats.scans} />
           </div>
 
           <div style={{ ...card, display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -400,7 +401,7 @@ export default function ProductCatalogManager({ businessId }) {
                 onMouseEnter={(e) => e.currentTarget.style.background = GREEN_DARK}
                 onMouseLeave={(e) => e.currentTarget.style.background = GREEN}
               >
-                ⬇ Download QR Code
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon.Download size={15} /> Download QR Code</span>
               </button>
             </div>
           </div>
@@ -415,7 +416,7 @@ export default function ProductCatalogManager({ businessId }) {
               onClick={() => setShowForm(true)}
               style={{ width: '100%', background: 'var(--hover-bg)', border: `1.5px dashed var(--border)`, borderRadius: 14, padding: '16px', color: GREEN_DARK, fontWeight: 700, fontSize: 14, cursor: 'pointer', marginBottom: 20 }}
             >
-              + Add a new product
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon.Plus size={16} /> Add a new product</span>
             </button>
           )}
 
@@ -461,7 +462,7 @@ export default function ProductCatalogManager({ businessId }) {
           )}
 
           {products.length === 0 ? (
-            <EmptyState icon="🗂️" text="No products yet — add your first one above to get started." />
+            <EmptyState icon={<Icon.Details size={30} />} text="No products yet — add your first one above to get started." />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {products.map((p) => {
@@ -522,7 +523,7 @@ export default function ProductCatalogManager({ businessId }) {
                             cursor: usablePhotoCount === 0 ? 'not-allowed' : 'pointer',
                           }}
                         >
-                          {sendingFor === p.id ? 'Sending…' : '🛍️ Send to Market'}
+                          {sendingFor === p.id ? 'Sending…' : 'Send to Market'}
                         </button>
                         {latestPost && <StatusBadge status={latestPost.status} />}
                         {usablePhotoCount === 0 && <span className="muted" style={{ fontSize: 12 }}>Add a photo first</span>}
@@ -539,7 +540,7 @@ export default function ProductCatalogManager({ businessId }) {
       {/* ===== MARKET REVIEW TAB ===== */}
       {activeTab === 'market' && (
         marketPosts.length === 0 ? (
-          <EmptyState icon="🛍️" text={'Nothing sent to Market yet — go to the Products tab and hit "Send to Market" on an item with a photo.'} />
+          <EmptyState icon={<Icon.Store size={30} />} text={'Nothing sent to Market yet — go to the Products tab and hit "Send to Market" on an item with a photo.'} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {marketPosts.map((post) => (
@@ -621,7 +622,7 @@ function StatCard({ icon, label, value, accent }) {
       border: `1px solid ${accent ? '#BEE9DA' : 'var(--border)'}`,
       borderRadius: 14, padding: '16px 14px', textAlign: 'center',
     }}>
-      <div style={{ fontSize: 18, marginBottom: 4 }}>{icon}</div>
+      <div style={{ marginBottom: 4, display: 'flex', justifyContent: 'center', color: 'var(--text-muted)' }}>{icon}</div>
       <div style={{ fontSize: 24, fontWeight: 800, color: accent ? '#0F6E56' : 'var(--text-strong)' }}>{value}</div>
       <div className="muted" style={{ fontSize: 11.5 }}>{label}</div>
     </div>
@@ -641,7 +642,7 @@ function StatusBadge({ status }) {
 function EmptyState({ icon, text }) {
   return (
     <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)' }}>
-      <div style={{ fontSize: 34, marginBottom: 10 }}>{icon}</div>
+      <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center', color: 'var(--text-muted)' }}>{icon}</div>
       <p style={{ fontSize: 14, maxWidth: 320, margin: '0 auto' }}>{text}</p>
     </div>
   )
