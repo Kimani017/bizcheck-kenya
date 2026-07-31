@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import RubiksLoader from './RubiksLoader'
 import Icon from './Icon'
+import { AuthorRow } from './Avatar'
 
 const PAGE_SIZE = 8
 
@@ -141,7 +142,7 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
     const { data, error } = await supabase
       .from('post_comments')
       .insert({ post_id: postId, user_id: currentUser.id, comment_text: entry.draft.trim() })
-      .select('*, profiles(username)')
+      .select('*, profiles(username, avatar_url)')
       .single()
 
     if (error) { alert('Could not post comment: ' + error.message); return }
@@ -314,9 +315,10 @@ function FeedPost({ post, like, saved, comment, currentUser, onToggleLike, onTog
           <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
             {comment.list.length === 0 && <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>No comments yet.</p>}
             {comment.list.map((c) => (
-              <p key={c.id} style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>
-                <strong>@{c.profiles?.username || 'user'}</strong> {c.comment_text}
-              </p>
+              <div key={c.id} style={{ marginBottom: 12, textAlign: 'left' }}>
+                <AuthorRow username={c.profiles?.username} photoUrl={c.profiles?.avatar_url} timestamp={c.created_at} size={28} />
+                <p style={{ fontSize: 13, paddingLeft: 37 }}>{c.comment_text}</p>
+              </div>
             ))}
             {currentUser ? (
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>

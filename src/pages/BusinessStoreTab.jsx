@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import RubiksLoader from './RubiksLoader'
 import Icon from './Icon'
+import { AuthorRow } from './Avatar'
 
 // Business-side view of their own store posts: same cards customers see,
 // plus view/like counts, delete, and replying to comments.
@@ -61,7 +62,7 @@ export default function BusinessStoreTab({ business, currentUser, onOpenCatalog 
     }
     const { data, error } = await supabase
       .from('post_comments')
-      .select('*, profiles(username)')
+      .select('*, profiles(username, avatar_url)')
       .eq('post_id', postId)
       .order('created_at', { ascending: true })
 
@@ -77,7 +78,7 @@ export default function BusinessStoreTab({ business, currentUser, onOpenCatalog 
     const { data, error } = await supabase
       .from('post_comments')
       .insert({ post_id: postId, user_id: currentUser.id, comment_text: draft.trim() })
-      .select('*, profiles(username)')
+      .select('*, profiles(username, avatar_url)')
       .single()
 
     if (error) { setError('Could not post reply: ' + error.message); return }
@@ -178,17 +179,23 @@ export default function BusinessStoreTab({ business, currentUser, onOpenCatalog 
                         <p className="muted" style={{ fontSize: 13, marginBottom: 8 }}>No comments yet.</p>
                       )}
                       {(comments[post.id] || []).map((c) => (
-                        <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                          <p style={{ fontSize: 13 }}>
-                            <strong>@{c.profiles?.username || 'user'}</strong> {c.comment_text}
-                          </p>
-                          <button
-                            onClick={() => deleteComment(c.id, post.id)}
-                            title="Delete this comment"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, flexShrink: 0, padding: 0 }}
-                          >
-                            ×
-                          </button>
+                        <div key={c.id} style={{ marginBottom: 12 }}>
+                          <AuthorRow
+                            username={c.profiles?.username}
+                            photoUrl={c.profiles?.avatar_url}
+                            timestamp={c.created_at}
+                            size={28}
+                            trailing={
+                              <button
+                                onClick={() => deleteComment(c.id, post.id)}
+                                title="Delete this comment"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0, padding: 0, display: 'flex' }}
+                              >
+                                <Icon.Trash size={15} />
+                              </button>
+                            }
+                          />
+                          <p style={{ fontSize: 13, paddingLeft: 37 }}>{c.comment_text}</p>
                         </div>
                       ))}
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import RubiksLoader from './RubiksLoader'
+import { AuthorRow } from './Avatar'
 
 const GREEN = '#1D9E75'
 
@@ -37,7 +38,7 @@ export default function BusinessActivitiesTab({ business, currentUser }) {
       { data: reportedUserData },
       { data: likedData },
     ] = await Promise.all([
-      supabase.from('reviews').select('*, profiles(username)').eq('business_id', business.id).order('created_at', { ascending: false }),
+      supabase.from('reviews').select('*, profiles(username, avatar_url)').eq('business_id', business.id).order('created_at', { ascending: false }),
       supabase.from('business_activity_log').select('*').eq('business_id', business.id).order('created_at', { ascending: false }).limit(50),
       supabase.from('market_posts').select('id', { count: 'exact', head: true }).eq('business_id', business.id),
       // Businesses this business's owner has viewed
@@ -103,15 +104,15 @@ export default function BusinessActivitiesTab({ business, currentUser }) {
           <p className="muted" style={{ fontSize: 13 }}>No reviews yet.</p>
         ) : (
           reviews.map((r) => (
-            <div key={r.id} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10, marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>@{r.profiles?.username || 'user'}</span>
-                <StarDisplay rating={r.rating} />
-              </div>
-              {r.review_text && <p style={{ fontSize: 13 }}>{r.review_text}</p>}
-              <p className="muted" style={{ fontSize: 11, marginTop: 3 }}>
-                {new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </p>
+            <div key={r.id} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
+              <AuthorRow
+                username={r.profiles?.username}
+                photoUrl={r.profiles?.avatar_url}
+                timestamp={r.created_at}
+                size={30}
+                trailing={<StarDisplay rating={r.rating} />}
+              />
+              {r.review_text && <p style={{ fontSize: 13, paddingLeft: 39 }}>{r.review_text}</p>}
             </div>
           ))
         )}
