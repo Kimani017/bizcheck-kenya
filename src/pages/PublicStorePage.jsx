@@ -32,13 +32,17 @@ export default function PublicStorePage({ businessId }) {
 
     const [{ data: prods }, { data: posts }] = await Promise.all([
       supabase.from('products').select('*').eq('business_id', businessId).eq('is_active', true).order('created_at', { ascending: false }),
-      supabase.from('market_posts').select('product_id, market_photo_url').eq('business_id', businessId).eq('status', 'approved'),
+      supabase.from('market_posts').select('id, product_id, market_photo_url').eq('business_id', businessId).eq('status', 'approved'),
     ])
 
-    const photoByProduct = {}
-    ;(posts || []).forEach((post) => { photoByProduct[post.product_id] = post.market_photo_url })
+    const postByProduct = {}
+    ;(posts || []).forEach((post) => { postByProduct[post.product_id] = post })
 
-    setProducts((prods || []).map((p) => ({ ...p, display_photo: photoByProduct[p.id] || null })))
+    setProducts((prods || []).map((p) => ({
+      ...p,
+      display_photo: postByProduct[p.id]?.market_photo_url || null,
+      post_id: postByProduct[p.id]?.id || null,
+    })))
     setLoading(false)
   }
 
@@ -90,6 +94,14 @@ export default function PublicStorePage({ businessId }) {
       reader.onerror = reject
       reader.readAsDataURL(file)
     })
+  }
+
+  async function openProduct(product) {
+    setSelectedProduct(product)
+    // Log the view so the business sees real numbers on their Store tab
+    if (product.post_id) {
+      supabase.from('post_views').insert({ post_id: product.post_id, business_id: businessId }).then(() => {})
+    }
   }
 
   const filteredProducts = products.filter((p) => {
@@ -202,7 +214,7 @@ export default function PublicStorePage({ businessId }) {
             {filteredProducts.map((product) => (
               <div
                 key={product.id}
-                onClick={() => setSelectedProduct(product)}
+                onClick={() => openProduct(product)}
                 style={{
                   background: '#fff', borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
                   border: '1px solid var(--border, #E5E3DC)', transition: 'transform 0.15s, box-shadow 0.15s',

@@ -37,6 +37,13 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
       setHasMore(newPosts.length === PAGE_SIZE)
       setPage(pageIndex)
       await loadEngagementFor(newPosts)
+
+      // Log a view for each post shown, so businesses see real numbers
+      if (newPosts.length > 0) {
+        supabase.from('post_views').insert(
+          newPosts.map((p) => ({ post_id: p.id, business_id: p.business_id, viewer_id: currentUser?.id || null }))
+        ).then(() => {})
+      }
     }
     setLoading(false)
   }

@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import ReportUserModal from './ReportUserModal'
 import ProductCatalogManager from './ProductCatalogManager'
+import BusinessStoreTab from './BusinessStoreTab'
+import BusinessDashboardTab from './BusinessDashboardTab'
+import BusinessActivitiesTab from './BusinessActivitiesTab'
 import RubiksLoader from './RubiksLoader'
 import { chargeBusinessCredits } from './CreditGate'
 
@@ -22,6 +25,7 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
   const [views, setViews] = useState([])
   const [editing, setEditing] = useState(false)
   const [showProducts, setShowProducts] = useState(false)
+  const [activeTab, setActiveTab] = useState('store') // 'store' | 'dashboard' | 'details' | 'activities'
   const [form, setForm] = useState({
     description: business.description || '',
     phone: business.phone || '',
@@ -178,12 +182,38 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
         </div>
       </div>
 
+      {/* SUBTAB SWITCHER */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 12, overflowX: 'auto' }}>
+        <button className={`subtab-btn ${activeTab === 'store' ? 'on' : ''}`} onClick={() => setActiveTab('store')}>Store</button>
+        <button className={`subtab-btn ${activeTab === 'dashboard' ? 'on' : ''}`} onClick={() => setActiveTab('dashboard')}>Dashboard</button>
+        <button className={`subtab-btn ${activeTab === 'details' ? 'on' : ''}`} onClick={() => setActiveTab('details')}>Business Details</button>
+        <button className={`subtab-btn ${activeTab === 'activities' ? 'on' : ''}`} onClick={() => setActiveTab('activities')}>Activities</button>
+      </div>
+
+      {/* STORE TAB */}
+      {activeTab === 'store' && !showProducts && (
+        <BusinessStoreTab
+          business={biz}
+          currentUser={currentUser}
+          onOpenCatalog={() => setShowProducts(true)}
+        />
+      )}
+
+      {/* DASHBOARD TAB */}
+      {activeTab === 'dashboard' && <BusinessDashboardTab business={biz} />}
+
+      {/* ACTIVITIES TAB */}
+      {activeTab === 'activities' && <BusinessActivitiesTab business={biz} currentUser={currentUser} />}
+
       {/* PRODUCT CATALOG & MARKET — Full Control subscribers only */}
       {showProducts && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, marginBottom: 20 }}>
           <ProductCatalogManager businessId={biz.id} />
         </div>
       )}
+
+      {activeTab === 'details' && (
+      <>
 
       {/* AVAILABLE CREDITS */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
@@ -395,6 +425,9 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
             />
           ))}
         </div>
+      )}
+
+      </>
       )}
     </div>
   )
