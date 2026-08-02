@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import RubiksLoader from './RubiksLoader'
 import Icon from './Icon'
+import BuyProductModal from './BuyProductModal'
 
 const GREEN = '#1D9E75'
 const GREEN_DARK = '#0F6E56'
@@ -97,12 +98,25 @@ export default function PublicStorePage({ businessId }) {
     })
   }
 
+  const [currentUser, setCurrentUser] = useState(null)
+  const [buyProduct, setBuyProduct] = useState(null)
+  const [orderPlaced, setOrderPlaced] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUser(data?.user || null))
+  }, [])
+
   async function openProduct(product) {
     setSelectedProduct(product)
     // Log the view so the business sees real numbers on their Store tab
     if (product.post_id) {
       supabase.from('post_views').insert({ post_id: product.post_id, business_id: businessId }).then(() => {})
     }
+  }
+
+  function startBuy(product) {
+    if (!currentUser) return // guarded in the UI itself, see the button below
+    setBuyProduct(product)
   }
 
   const filteredProducts = products.filter((p) => {
@@ -262,6 +276,21 @@ export default function PublicStorePage({ businessId }) {
               {selectedProduct.colors?.length > 0 && <DetailRow label="Colors" value={selectedProduct.colors.join(', ')} />}
             </div>
 
+            {currentUser ? (
+              <button
+                onClick={() => startBuy(selectedProduct)}
+                disabled={!selectedProduct.quantity}
+                style={{ width: '100%', background: selectedProduct.quantity ? '#1D9E75' : 'var(--hover-bg, #F1EFE8)', color: selectedProduct.quantity ? '#fff' : 'var(--text-muted, #999)', border: 'none', borderRadius: 12, padding: '13px', fontSize: 14.5, fontWeight: 700, cursor: selectedProduct.quantity ? 'pointer' : 'not-allowed', marginBottom: 8 }}
+              >
+                {selectedProduct.quantity ? 'Buy with Checks' : 'Out of stock'}
+              </button>
+            ) : (
+              <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E', borderRadius: 10, padding: '10px 14px', marginBottom: 10, fontSize: 12.5, textAlign: 'center' }}>
+                Log in to the BizCheck app to buy this item —{' '}
+                <a href="https://www.bizcheckkenya.com" style={{ color: '#92400E', fontWeight: 700 }}>open BizCheck</a>
+              </div>
+            )}
+
             <button
               onClick={() => { setSelectedProduct(null); setScanResult(null) }}
               style={{ width: '100%', background: 'var(--hover-bg, #F1EFE8)', border: 'none', borderRadius: 12, padding: '12px', fontSize: 14, fontWeight: 700, color: 'var(--text, #333)', cursor: 'pointer' }}
@@ -269,6 +298,27 @@ export default function PublicStorePage({ businessId }) {
               Close
             </button>
           </div>
+        </div>
+      )}
+
+      {buyProduct && (
+        <BuyProductModal
+          product={buyProduct}
+          currentUser={currentUser}
+          onClose={() => setBuyProduct(null)}
+          onOpenWallet={() => window.open('https://www.bizcheckkenya.com', '_blank')}
+          onOrdered={() => {
+            setBuyProduct(null)
+            setSelectedProduct(null)
+            setOrderPlaced(true)
+            setTimeout(() => setOrderPlaced(false), 6000)
+          }}
+        />
+      )}
+
+      {orderPlaced && (
+        <div style={{ position: 'fixed', bottom: 20, left: 20, right: 20, background: '#1D9E75', color: '#fff', borderRadius: 12, padding: '14px 18px', textAlign: 'center', fontSize: 14, fontWeight: 600, zIndex: 70 }}>
+          Order placed — your Checks are held safely. Track it under "My Orders" in the app.
         </div>
       )}
     </div>

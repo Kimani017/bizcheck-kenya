@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import BusinessPublicProfile from './BusinessPublicProfile'
 import RubiksLoader from './RubiksLoader'
 import Icon from './Icon'
+import BuyProductModal from './BuyProductModal'
 
 // The one destination for viewing any business, from anywhere in the app.
 // Pass the same props you'd give BusinessPublicProfile directly — this
@@ -16,6 +17,8 @@ export default function BusinessStorePage({
   const [posts, setPosts] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(true)
   const [selectedPost, setSelectedPost] = useState(null)
+  const [buyProduct, setBuyProduct] = useState(null)
+  const [orderPlaced, setOrderPlaced] = useState(false)
 
   useEffect(() => { loadPosts() }, [business?.id])
 
@@ -24,7 +27,7 @@ export default function BusinessStorePage({
     setLoadingPosts(true)
     const { data } = await supabase
       .from('market_posts')
-      .select('*, products(name, description, price, quantity, sizes, colors)')
+      .select('*, products(id, name, description, price, quantity, sizes, colors)')
       .eq('business_id', business.id)
       .eq('status', 'approved')
       .order('created_at', { ascending: false })
@@ -122,8 +125,38 @@ export default function BusinessStorePage({
             {selectedPost.products?.quantity != null && <p style={{ fontSize: 13, marginBottom: 4 }}>Stock: {selectedPost.products.quantity} available</p>}
             {selectedPost.products?.sizes?.length > 0 && <p style={{ fontSize: 13, marginBottom: 4 }}>Sizes: {selectedPost.products.sizes.join(', ')}</p>}
             {selectedPost.products?.colors?.length > 0 && <p style={{ fontSize: 13, marginBottom: 4 }}>Colors: {selectedPost.products.colors.join(', ')}</p>}
-            <button className="btn-small" style={{ marginTop: 14 }} onClick={() => setSelectedPost(null)}>Close</button>
+            {selectedPost.products?.id && business?.owner_id !== currentUser?.id && (
+              <button
+                onClick={() => setBuyProduct(selectedPost.products)}
+                disabled={!selectedPost.products.quantity}
+                style={{ width: '100%', marginTop: 12, background: selectedPost.products.quantity ? '#1D9E75' : 'var(--hover-bg)', color: selectedPost.products.quantity ? '#fff' : 'var(--text-muted)', border: 'none', borderRadius: 10, padding: '12px', fontSize: 14, fontWeight: 700, cursor: selectedPost.products.quantity ? 'pointer' : 'not-allowed' }}
+              >
+                {selectedPost.products.quantity ? 'Buy with Checks' : 'Out of stock'}
+              </button>
+            )}
+            <button className="btn-small" style={{ marginTop: 10 }} onClick={() => setSelectedPost(null)}>Close</button>
           </div>
+        </div>
+      )}
+
+      {buyProduct && (
+        <BuyProductModal
+          product={buyProduct}
+          currentUser={currentUser}
+          onClose={() => setBuyProduct(null)}
+          onOpenWallet={() => window.location.hash = '#wallet'}
+          onOrdered={() => {
+            setBuyProduct(null)
+            setSelectedPost(null)
+            setOrderPlaced(true)
+            setTimeout(() => setOrderPlaced(false), 6000)
+          }}
+        />
+      )}
+
+      {orderPlaced && (
+        <div style={{ position: 'fixed', bottom: 90, left: 20, right: 20, background: '#1D9E75', color: '#fff', borderRadius: 12, padding: '14px 18px', textAlign: 'center', fontSize: 14, fontWeight: 600, zIndex: 70 }}>
+          Order placed — your Checks are held safely. Track it under "My Orders."
         </div>
       )}
     </div>

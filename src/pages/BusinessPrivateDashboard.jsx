@@ -5,6 +5,7 @@ import ProductCatalogManager from './ProductCatalogManager'
 import BusinessStoreTab from './BusinessStoreTab'
 import BusinessDashboardTab from './BusinessDashboardTab'
 import BusinessActivitiesTab from './BusinessActivitiesTab'
+import BusinessOrdersTab from './BusinessOrdersTab'
 import Icon from './Icon'
 import RubiksLoader from './RubiksLoader'
 import { chargeBusinessCredits } from './CreditGate'
@@ -194,6 +195,9 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
         <button className={`subtab-btn ${activeTab === 'activities' ? 'on' : ''}`} onClick={() => setActiveTab('activities')} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
           <Icon.Activities size={16} /> Activities
         </button>
+        <button className={`subtab-btn ${activeTab === 'orders' ? 'on' : ''}`} onClick={() => setActiveTab('orders')} style={{ whiteSpace: 'nowrap' }}>
+          Orders
+        </button>
       </div>
 
       {/* STORE TAB */}
@@ -210,6 +214,9 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
 
       {/* ACTIVITIES TAB */}
       {activeTab === 'activities' && <BusinessActivitiesTab business={biz} currentUser={currentUser} />}
+
+      {/* ORDERS TAB */}
+      {activeTab === 'orders' && <BusinessOrdersTab business={biz} currentUser={currentUser} />}
 
       {/* PRODUCT CATALOG & MARKET — Full Control subscribers only */}
       {showProducts && (

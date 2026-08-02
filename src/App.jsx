@@ -20,6 +20,10 @@ import Pleads from './pages/Pleads'
 import LoginOtp from './pages/LoginOtp'
 import AdminIdCheck from './pages/AdminIdCheck'
 import Messages from './pages/Messages'
+import WalletPage from './pages/WalletPage'
+import MyOrdersPage from './pages/MyOrdersPage'
+import AdminEscrowQueue from './pages/AdminEscrowQueue'
+import AdminWithdrawalQueue from './pages/AdminWithdrawalQueue'
 import EditViaLink from './pages/EditViaLink'
 import AccountChooser from './pages/AccountChooser'
 import B2BChat from './pages/B2BChat'
@@ -496,6 +500,8 @@ function App() {
               <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report' : 'Report a Scammer'}</button>
             )}
             {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
+            {isAdmin && <button className={page === 'adminEscrow' ? 'active' : ''} onClick={() => navigate('adminEscrow')}>Escrow</button>}
+            {isAdmin && <button className={page === 'adminWithdrawals' ? 'active' : ''} onClick={() => navigate('adminWithdrawals')}>Withdrawals</button>}
             {businessMode ? (
               <button className={page === 'bizDashboard' ? 'active' : ''} onClick={() => { setSelectedBusiness(businessMode); navigate('bizDashboard', { business: businessMode }) }}>🏢 {businessMode.name}</button>
             ) : isAdmin ? (
@@ -508,6 +514,8 @@ function App() {
           </div>
 
           <div className="nav-links nav-links-right">
+            <button className={page === 'wallet' ? 'active' : ''} onClick={() => navigate('wallet')}>Wallet</button>
+            <button className={page === 'myOrders' ? 'active' : ''} onClick={() => navigate('myOrders')}>My Orders</button>
             <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
             {isSuperadmin && <button className={page === 'pleads' ? 'active' : ''} onClick={() => navigate('pleads')}>Pleads</button>}
           </div>
@@ -546,6 +554,8 @@ function App() {
               <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report' : 'Report a Scammer'}</button>
             )}
               {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
+            {isAdmin && <button className={page === 'adminEscrow' ? 'active' : ''} onClick={() => navigate('adminEscrow')}>Escrow</button>}
+            {isAdmin && <button className={page === 'adminWithdrawals' ? 'active' : ''} onClick={() => navigate('adminWithdrawals')}>Withdrawals</button>}
               {businessMode ? (
                 <button className={page === 'bizDashboard' ? 'active' : ''} onClick={() => { setSelectedBusiness(businessMode); navigate('bizDashboard', { business: businessMode }) }}>🏢 {businessMode.name}</button>
               ) : isAdmin ? (
@@ -554,6 +564,8 @@ function App() {
                 <button className={page === 'userProfile' ? 'active' : ''} onClick={() => openUserProfile(user.id)}>My Profile</button>
               )}
               <button className={page === 'messages' ? 'active' : ''} onClick={() => openMessages()}>Messages</button>
+              <button className={page === 'wallet' ? 'active' : ''} onClick={() => navigate('wallet')}>Wallet</button>
+              <button className={page === 'myOrders' ? 'active' : ''} onClick={() => navigate('myOrders')}>My Orders</button>
             <button className={page === 'notifications' ? 'active' : ''} onClick={() => navigate('notifications')} aria-label="Notifications"><Icon.Bell size={19} /></button>
               <div className="mobile-menu-divider" />
               <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
@@ -617,6 +629,10 @@ function App() {
         {page === 'admin' && <AdminDashboard onSelectBusiness={openBusiness} onSelectUser={openUserProfile} />}
         {page === 'adminProfiles' && <AdminProfiles onSelectBusiness={openBusiness} onSelectUser={openUserProfile} currentUser={user} />}
         {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} onLogout={handleLogout} onOpenSupport={() => navigate('support')} onOpenPricing={() => navigate('pricing')} onOpenPrivacy={() => navigate('privacy')} onOpenTerms={() => navigate('terms')} businessMode={businessMode} onSwitchToPersonal={() => { localStorage.removeItem(BUSINESS_MODE_KEY); setBusinessMode(null); navigate('home') }} />}
+        {page === 'wallet' && <WalletPage currentUser={user} onBack={goBack} />}
+        {page === 'myOrders' && <MyOrdersPage currentUser={user} onBack={goBack} onSelectBusiness={openBusiness} />}
+        {page === 'adminEscrow' && isAdmin && <AdminEscrowQueue onBack={goBack} />}
+        {page === 'adminWithdrawals' && isAdmin && <AdminWithdrawalQueue onBack={goBack} />}
         {page === 'support' && <Support onBack={goBack} currentUser={user} businessMode={businessMode} onInsufficientCredits={() => setShowCreditModal(true)} />}
         {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
         {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} isAdmin={isAdmin} businessMode={businessMode} onBack={goBack} onInsufficientCredits={() => setShowCreditModal(true)} onMessageBusiness={openB2BChat} />}
