@@ -26,7 +26,7 @@ export default function PublicStorePage({ businessId }) {
 
     const { data: biz } = await supabase
       .from('businesses')
-      .select('id, name, logo_url, trust_score, status, ban_reason, banned_at, category, location')
+      .select('id, name, logo_url, trust_score, status, ban_reason, banned_at, category, location, owner_id')
       .eq('id', businessId)
       .single()
 
@@ -101,10 +101,46 @@ export default function PublicStorePage({ businessId }) {
   const [currentUser, setCurrentUser] = useState(null)
   const [buyProduct, setBuyProduct] = useState(null)
   const [orderPlaced, setOrderPlaced] = useState(false)
+  const [showMessageBox, setShowMessageBox] = useState(false)
+  const [messageText, setMessageText] = useState('')
+  const [sendingMessage, setSendingMessage] = useState(false)
+  const [messageSent, setMessageSent] = useState(false)
+  const [signingUp, setSigningUp] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUser(data?.user || null))
+    // Picks up the session immediately after a Google sign-up redirect lands
+    // back on this same page — no manual refresh needed.
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user || null)
+    })
+    return () => listener.subscription.unsubscribe()
   }, [])
+
+  async function signUpWithGoogle() {
+    setSigningUp(true)
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.href },
+    })
+    // Browser redirects away here — no need to reset signingUp
+  }
+
+  async function sendMessage() {
+    if (!messageText.trim() || !business.owner_id) return
+    setSendingMessage(true)
+    const { error } = await supabase.from('direct_messages').insert({
+      sender_id: currentUser.id,
+      recipient_id: business.owner_id,
+      message: messageText.trim(),
+    })
+    setSendingMessage(false)
+    if (error) { alert('Could not send message: ' + error.message); return }
+    setMessageText('')
+    setShowMessageBox(false)
+    setMessageSent(true)
+    setTimeout(() => setMessageSent(false), 5000)
+  }
 
   async function openProduct(product) {
     setSelectedProduct(product)
@@ -167,6 +203,24 @@ export default function PublicStorePage({ businessId }) {
           <span style={{ background: 'rgba(255,255,255,0.18)', padding: '4px 12px', borderRadius: 999 }}>⭐ Trust {business.trust_score ?? '—'}%</span>
           {business.location && <span style={{ background: 'rgba(255,255,255,0.18)', padding: '4px 12px', borderRadius: 999 }}>📍 {business.location}</span>}
         </div>
+        {currentUser ? (
+          business.owner_id && business.owner_id !== currentUser.id && (
+            <button
+              onClick={() => setShowMessageBox(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12, background: 'rgba(255,255,255,0.18)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 999, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+            >
+              <Icon.Messages size={14} /> Message this business
+            </button>
+          )
+        ) : (
+          <button
+            onClick={signUpWithGoogle}
+            disabled={signingUp}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12, background: '#fff', color: '#0F6E56', border: 'none', padding: '6px 14px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: signingUp ? 'default' : 'pointer' }}
+          >
+            {signingUp ? 'Opening Google…' : 'Sign up with Google to message'}
+          </button>
+        )}
       </div>
 
       {/* SEARCH BAR — floats over the header/content boundary */}
@@ -319,6 +373,45 @@ export default function PublicStorePage({ businessId }) {
       {orderPlaced && (
         <div style={{ position: 'fixed', bottom: 20, left: 20, right: 20, background: '#1D9E75', color: '#fff', borderRadius: 12, padding: '14px 18px', textAlign: 'center', fontSize: 14, fontWeight: 600, zIndex: 70 }}>
           Order placed — your Checks are held safely. Track it under "My Orders" in the app.
+        </div>
+      )}
+
+      {showMessageBox && (
+        <div
+          onClick={() => setShowMessageBox(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 70 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: 22, maxWidth: 480, width: '100%' }}>
+            <div style={{ width: 40, height: 4, background: 'var(--border, #E5E3DC)', borderRadius: 999, margin: '0 auto 16px' }} />
+            <h3 style={{ marginBottom: 4 }}>Message {business.name}</h3>
+            <p className="muted" style={{ fontSize: 12.5, marginBottom: 12 }}>They'll see this in their BizCheck messages.</p>
+            <textarea
+              rows={4}
+              placeholder="Ask about stock, delivery, sizes…"
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              style={{ width: '100%', padding: '11px 14px', borderRadius: 10, border: '1px solid var(--border, #E5E3DC)', fontSize: 14, marginBottom: 12, resize: 'vertical' }}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={sendingMessage || !messageText.trim()}
+              style={{ width: '100%', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 12, padding: '13px', fontSize: 14.5, fontWeight: 700, cursor: sendingMessage ? 'default' : 'pointer', opacity: messageText.trim() ? 1 : 0.5 }}
+            >
+              {sendingMessage ? 'Sending…' : 'Send message'}
+            </button>
+            <button
+              onClick={() => setShowMessageBox(false)}
+              style={{ width: '100%', background: 'none', border: 'none', padding: '12px', marginTop: 6, fontSize: 13.5, color: 'var(--text-muted, #999)', cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {messageSent && (
+        <div style={{ position: 'fixed', bottom: 20, left: 20, right: 20, background: '#1D9E75', color: '#fff', borderRadius: 12, padding: '14px 18px', textAlign: 'center', fontSize: 14, fontWeight: 600, zIndex: 70 }}>
+          Message sent — the business will see it in their BizCheck inbox.
         </div>
       )}
     </div>
