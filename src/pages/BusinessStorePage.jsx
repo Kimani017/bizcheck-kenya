@@ -78,25 +78,16 @@ export default function BusinessStorePage({
   async function toggleLike(postId) {
     if (!currentUser) { alert('Please log in to like posts.'); return }
     const current = likeState[postId] || { liked: false, count: 0 }
-    if (current.liked) {
-      const { error } = await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', currentUser.id)
-      if (error) return
-      setLikeState((prev) => ({ ...prev, [postId]: { liked: false, count: Math.max(0, current.count - 1) } }))
-    } else {
-      const { error } = await supabase.from('post_likes').insert({ post_id: postId, user_id: currentUser.id })
-      if (error) return
-      setLikeState((prev) => ({ ...prev, [postId]: { liked: true, count: current.count + 1 } }))
-    }
+    const { data: nowLiked, error } = await supabase.rpc('toggle_post_like', { p_post_id: postId })
+    if (error) return
+    setLikeState((prev) => ({ ...prev, [postId]: { liked: nowLiked, count: Math.max(0, current.count + (nowLiked ? 1 : -1)) } }))
   }
 
   async function toggleSave(postId) {
     if (!currentUser) { alert('Please log in to save posts.'); return }
-    const isSaved = saveState[postId]
-    const { error } = isSaved
-      ? await supabase.from('post_saves').delete().eq('post_id', postId).eq('user_id', currentUser.id)
-      : await supabase.from('post_saves').insert({ post_id: postId, user_id: currentUser.id })
+    const { data: nowSaved, error } = await supabase.rpc('toggle_post_save', { p_post_id: postId })
     if (error) return
-    setSaveState((prev) => ({ ...prev, [postId]: !isSaved }))
+    setSaveState((prev) => ({ ...prev, [postId]: nowSaved }))
   }
 
   async function toggleComments(postId) {
