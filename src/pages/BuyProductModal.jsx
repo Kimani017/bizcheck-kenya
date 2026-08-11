@@ -27,7 +27,9 @@ export default function BuyProductModal({ product, currentUser, onClose, onOrder
   }
 
   const unitChecks = kshToChecks(product?.price || 0)
-  const totalChecks = unitChecks * quantity
+  const baseTotal = unitChecks * quantity
+  const buyerFee = Math.round(baseTotal * 0.03 * 100) / 100
+  const totalChecks = Math.round((baseTotal + buyerFee) * 100) / 100
   const balance = Number(wallet?.balance || 0)
   const shortfall = Math.max(0, totalChecks - balance)
   const canAfford = shortfall <= 0
@@ -114,6 +116,8 @@ export default function BuyProductModal({ product, currentUser, onClose, onOrder
 
         {/* Total + balance */}
         <div style={{ background: 'var(--hover-bg)', borderRadius: 12, padding: 14, margin: '14px 0' }}>
+          <Row label="Subtotal" value={formatChecks(baseTotal)} muted />
+          <Row label="Platform fee (3%)" value={formatChecks(buyerFee)} muted />
           <Row label="Total" value={formatChecks(totalChecks)} bold />
           <Row label="In real money" value={formatKsh(checksToKsh(totalChecks))} muted />
           <div style={{ height: 1, background: 'var(--border)', margin: '8px 0' }} />

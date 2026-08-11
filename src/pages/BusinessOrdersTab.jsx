@@ -74,7 +74,7 @@ export default function BusinessOrdersTab({ business, currentUser }) {
 
   const pendingEarnings = orders
     .filter((o) => openStatuses.includes(o.status))
-    .reduce((sum, o) => sum + Number(o.total_checks), 0)
+    .reduce((sum, o) => sum + Number(o.seller_payout_checks || o.total_checks), 0)
 
   return (
     <div style={{ textAlign: 'left' }}>
@@ -126,10 +126,14 @@ export default function BusinessOrdersTab({ business, currentUser }) {
                   </span>
                 </div>
 
-                <p style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>
-                  {formatChecks(o.total_checks)}
-                  <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}> · {formatKsh(checksToKsh(o.total_checks))}</span>
+                <p style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>
+                  {formatChecks(o.seller_payout_checks || o.total_checks)} <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>you'll receive</span>
                 </p>
+                {o.commission_checks > 0 && (
+                  <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+                    Order total: {formatChecks(o.total_checks)} · Platform fee: {formatChecks(o.commission_checks)}
+                  </p>
+                )}
 
                 {(o.size || o.color || o.delivery_note) && (
                   <p className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>

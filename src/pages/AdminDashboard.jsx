@@ -2,19 +2,34 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { SkeletonList } from './Skeleton'
 import UserActivity from './UserActivity'
+import { formatChecks, formatKsh, checksToKsh } from './checksUtils'
 
 const FLAG_THRESHOLD = 6
 const SCAM_THRESHOLD = 10
 
+const TXN_KIND_LABELS = {
+  deposit: 'Deposit',
+  order_hold: 'Held for order',
+  order_release: 'Released to seller',
+  order_refund: 'Refund',
+  withdrawal_request: 'Withdrawal',
+  withdrawal_failed: 'Withdrawal returned',
+  admin_adjustment: 'Admin adjustment',
+  credit_purchase: 'Credit purchase',
+  subscription_payment: 'Subscription',
+  platform_revenue: 'Platform revenue',
+  commission: 'Commission',
+}
+
 export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
-  const [mainTab, setMainTab] = useState('businesses') // businesses | reports | verification | chat
+  const [mainTab, setMainTab] = useState('businesses')
   const [chatThreads, setChatThreads] = useState([])
   const [activeThreadUserId, setActiveThreadUserId] = useState(null)
   const [threadMessages, setThreadMessages] = useState([])
   const [chatText, setChatText] = useState('')
   const [userReports, setUserReports] = useState([])
-  const [bizSubTab, setBizSubTab] = useState('verified') // verified | flagged | scam
-  const [reportSubTab, setReportSubTab] = useState('pending') // pending | reported | log
+  const [bizSubTab, setBizSubTab] = useState('verified')
+  const [reportSubTab, setReportSubTab] = useState('pending')
   const [processingSubmission, setProcessingSubmission] = useState(null)
   const [claims, setClaims] = useState([])
   const [claimNamesById, setClaimNamesById] = useState({})
@@ -25,14 +40,30 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(null)
   const [isSuperadmin, setIsSuperadmin] = useState(false)
-  const [banCodeModal, setBanCodeModal] = useState(null) // businessId awaiting code, or null
+  const [banCodeModal, setBanCodeModal] = useState(null)
   const [banCodeInput, setBanCodeInput] = useState('')
   const [banReason, setBanReason] = useState('')
   const [currentAdminId, setCurrentAdminId] = useState(null)
 
+  // Money tabs
+  const [txnEntries, setTxnEntries] = useState([])
+  const [txnFilter, setTxnFilter] = useState('all')
+  const [txnSearch, setTxnSearch] = useState('')
+  const [copiedId, setCopiedId] = useState(null)
+  const [revenueTotal, setRevenueTotal] = useState(0)
+  const [withdrawals, setWithdrawals] = useState([])
+  const [withdrawalFilter, setWithdrawalFilter] = useState('pending')
+  const [escrowOrders, setEscrowOrders] = useState([])
+  const [moneyLoaded, setMoneyLoaded] = useState(false)
+
   useEffect(() => { checkAdmin() }, [])
 
-  // Live updates for support chat — new messages appear instantly
+  useEffect(() => {
+    if ((mainTab === 'transactions' || mainTab === 'withdrawals' || mainTab === 'escrow') && !moneyLoaded) {
+      loadMoneyData()
+    }
+  }, [mainTab])
+
   useEffect(() => {
     if (!currentAdminId) return
     const channel = supabase
@@ -47,6 +78,77 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     return () => { supabase.removeChannel(channel) }
   }, [currentAdminId, activeThreadUserId])
 
+  async function loadMoneyData() {
+    const [{ data: entries }, { data: revenue }, { data: wds }, { data: escrowOrders }] = await Promise.all([
+      supabase
+        .from('wallet_entries')
+        .select('*, wallets(owner_type, user_id, business_id, businesses(name)), profiles(username)')
+        .order('created_at', { ascending: false })
+        .limit(300),
+      supabase.from('platform_revenue').select('checks_amount'),
+      supabase.from('withdrawals').select('*, profiles(username, phone)').order('created_at', { ascending: true }),
+      supabase.from('orders').select('*, businesses(name)').in('status', ['held', 'shipped', 'admin_review']).order('created_at', { ascending: true }),
+    ])
+    setTxnEntries(entries || [])
+    setRevenueTotal((revenue || []).reduce((s, r) => s + Number(r.checks_amount), 0))
+    setWithdrawals(wds || [])
+    setEscrowOrders(escrowOrders || [])
+    setMoneyLoaded(true)
+  }
+
+  function copyTxnId(id) {
+    navigator.clipboard?.writeText(id)
+    setCopiedId(id)
+    setTimeout(() => setCopiedId(null), 1500)
+  }
+
+  async function markWithdrawalPaid(w) {
+    const netAmount = w.net_amount_ksh ?? w.amount_ksh
+    const reference = window.prompt(
+      `Send KSh ${netAmount} (net, after 2% fee) to ${w.phone}.\n\nM-Pesa confirmation code:`
+    )
+    if (!reference || !reference.trim()) return
+
+    const { error: updateErr } = await supabase
+      .from('withdrawals')
+      .update({ status: 'paid', provider_reference: reference.trim(), processed_at: new Date().toISOString() })
+      .eq('id', w.id)
+    if (updateErr) { alert('Error: ' + updateErr.message); return }
+
+    const { error: feeErr } = await supabase.rpc('credit_withdrawal_fee', { p_withdrawal_id: w.id })
+    if (feeErr) { alert('Paid, but could not record the fee: ' + feeErr.message) }
+    loadMoneyData()
+  }
+
+  async function markWithdrawalFailed(w) {
+    const reason = window.prompt('Why did this payout fail? (Full amount will be returned to the user)')
+    if (reason === null) return
+    const { error } = await supabase.rpc('fail_withdrawal', { p_withdrawal_id: w.id, p_reason: reason || 'Payout failed' })
+    if (error) { alert('Error: ' + error.message); return }
+    loadMoneyData()
+  }
+
+  async function approveEscrowRelease(order) {
+    const missing = []
+    if (!order.buyer_confirmed_at) missing.push('buyer')
+    if (!order.seller_confirmed_at) missing.push('seller')
+    const warning = missing.length
+      ? `\n\nNote: ${missing.join(' and ')} have not confirmed yet. Your approval will be recorded, but the money only moves once everyone has confirmed.`
+      : '\n\nBuyer and seller have both confirmed. Approving now will release the payment.'
+    if (!confirm(`Approve release of ${formatChecks(order.total_checks)} for "${order.product_name}"?${warning}`)) return
+    const { error } = await supabase.rpc('admin_confirm_release', { p_order_id: order.id })
+    if (error) { alert('Error: ' + error.message); return }
+    loadMoneyData()
+  }
+
+  async function adminRefundOrder(order) {
+    const reason = window.prompt(`Refund ${formatChecks(order.total_checks)} to the buyer. Reason:`)
+    if (!reason || reason.trim().length < 3) { if (reason !== null) alert('Please give a reason for the refund.'); return }
+    const { error } = await supabase.rpc('admin_refund_order', { p_order_id: order.id, p_reason: reason.trim() })
+    if (error) { alert('Error: ' + error.message); return }
+    loadMoneyData()
+  }
+
   async function checkAdmin() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setIsAdmin(false); return }
@@ -58,7 +160,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     if (admin) loadAll()
   }
 
-  // Banning requires the superadmin's secret code unless you ARE the superadmin
   async function sendBizcode(business) {
     if (!business.owner_id) { alert('This business has no owner linked yet.'); return }
     if (processingSubmission === business.id) return
@@ -142,7 +243,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
       .order('created_at', { ascending: false })
     setClaims(claimData || [])
 
-    // Resolve claimant usernames + business names client-side (avoids FK-ambiguity 400s)
     if (claimData && claimData.length > 0) {
       const userIds = Array.from(new Set(claimData.map((c) => c.claimant_id)))
       const bizIds = Array.from(new Set(claimData.map((c) => c.business_id)))
@@ -188,14 +288,12 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     loadAll()
   }
 
-  // ── SUPPORT CHAT ──
   async function loadChatThreads() {
     const { data } = await supabase
       .from('support_messages')
       .select('*, profiles!support_messages_thread_user_id_fkey(name, username, email)')
       .order('created_at', { ascending: false })
 
-    // Group into threads by thread_user_id, keep latest message + unread count
     const grouped = {}
     ;(data || []).forEach((m) => {
       if (!grouped[m.thread_user_id]) {
@@ -222,7 +320,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
       .order('created_at', { ascending: true })
     setThreadMessages(data || [])
 
-    // Mark unread messages as read
     await supabase.from('support_messages')
       .update({ is_read: true })
       .eq('thread_user_id', userId)
@@ -244,7 +341,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     openThread(activeThreadUserId)
   }
 
-  // ── STATUS CHANGE (via safe RPC function with audit log) ──
   async function setBusinessStatus(businessId, status) {
     const { error } = await supabase.rpc('admin_set_business_status', {
       p_business_id: businessId, p_status: status, p_admin_id: currentAdminId,
@@ -253,9 +349,8 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     loadAll()
   }
 
-  // ── SUBMISSIONS ──
   async function approveSubmission(sub) {
-    if (processingSubmission) return // guard against double-clicks sending the bizcode email twice
+    if (processingSubmission) return
     setProcessingSubmission(sub.id)
     try {
       await doApproveSubmission(sub)
@@ -290,10 +385,8 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
       businessId = created.id
     }
 
-    // Generate the permanent bizcode for logging into business mode
     const { data: bizcode, error: codeError } = await supabase.rpc('finalize_business_verification', { p_business_id: businessId })
 
-    // Link any listing fee the applicant paid at submission time, activating their Listing Only plan
     await supabase.rpc('link_listing_payment', { p_submitter_id: sub.submitter_id, p_business_id: businessId })
     if (codeError) { alert('Verified, but could not generate bizcode: ' + codeError.message); }
 
@@ -305,7 +398,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
       admin_id: currentAdminId, action_type: 'approve_submission', target_table: 'submissions', target_id: sub.id,
     })
 
-    // Email the owner their bizcode
     if (bizcode) {
       const { data: sessionData } = await supabase.auth.getSession()
       try {
@@ -336,7 +428,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     loadAll()
   }
 
-  // ── REPORTS ──
   async function dismissReport(report) {
     await supabase.from('reports').update({
       status: 'dismissed', reviewed_by: currentAdminId, reviewed_at: new Date().toISOString(),
@@ -351,7 +442,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     let businessId = report.business_id
 
     if (!businessId) {
-      // First-ever report on this name — create a stored record so future reports link to it
       const { data: newBiz, error } = await supabase.from('businesses').insert({
         name: report.business_name, category: 'Other', status: 'pending',
         description: `Stored from scam report: ${report.description || report.scam_type}`,
@@ -379,13 +469,11 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   if (isAdmin === false) return <div className="section"><p className="muted">You don't have admin access.</p></div>
   if (loading) return <div className="section" style={{ maxWidth: 920 }}><h2 style={{ marginBottom: 20 }}>Admin Dashboard</h2><SkeletonList count={6} /></div>
 
-  // ── Derived data ──
   const verifiedBiz = businesses.filter(b => b.status === 'verified')
   const flaggedBiz = businesses.filter(b => b.status === 'flagged')
   const scamBiz = businesses.filter(b => b.status === 'scam')
   const pendingReports = reports.filter(r => r.status === 'pending')
 
-  // Businesses that have been reported at all (grouped)
   const reportedBusinessMap = {}
   reports.forEach(r => {
     if (!r.business_id) return
@@ -420,14 +508,16 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         )}
       </div>
 
-      {/* MAIN TABS */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 0, flexWrap: 'wrap' }}>
         {[
           ['businesses', 'All Businesses'],
           ['reports', 'Reports'],
           ['verification', `Business Verification${submissions.length ? ` (${submissions.length})` : ''}`],
           ['userReports', `User Reports${userReports.filter(r => r.status === 'pending').length ? ` (${userReports.filter(r => r.status === 'pending').length})` : ''}`],
           ['claims', `Claims${claims.filter(c => c.status === 'pending').length ? ` (${claims.filter(c => c.status === 'pending').length})` : ''}`],
+          ['transactions', 'Transactions'],
+          ['escrow', `Escrow${escrowOrders.filter(o => o.status === 'admin_review' || (o.buyer_confirmed_at && o.seller_confirmed_at && !o.admin_confirmed_at)).length ? ` (${escrowOrders.filter(o => o.status === 'admin_review' || (o.buyer_confirmed_at && o.seller_confirmed_at && !o.admin_confirmed_at)).length})` : ''}`],
+          ['withdrawals', `Withdrawals${withdrawals.filter(w => w.status === 'pending').length ? ` (${withdrawals.filter(w => w.status === 'pending').length})` : ''}`],
           ['chat', `Support Chat${chatThreads.reduce((s, t) => s + t.unreadCount, 0) ? ` (${chatThreads.reduce((s, t) => s + t.unreadCount, 0)})` : ''}`],
         ].map(([id, label]) => (
           <button
@@ -445,7 +535,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         ))}
       </div>
 
-      {/* ══════════════ ALL BUSINESSES ══════════════ */}
       {mainTab === 'businesses' && (
         <div>
           <div className="filter-row" style={{ marginBottom: 18 }}>
@@ -471,7 +560,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
-      {/* ══════════════ REPORTS ══════════════ */}
       {mainTab === 'reports' && (
         <div>
           <div className="filter-row" style={{ marginBottom: 18 }}>
@@ -489,7 +577,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
 
           {reportSubTab === 'made' && isSuperadmin && <UserActivity onBack={null} />}
 
-          {/* PENDING REPORTS */}
           {reportSubTab === 'pending' && (
             pendingReports.length === 0 ? <p className="muted">No pending reports.</p> :
             <div className="admin-list">
@@ -514,7 +601,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
             </div>
           )}
 
-          {/* BUSINESSES REPORTED */}
           {reportSubTab === 'reported' && (
             reportedBusinesses.length === 0 ? <p className="muted">No businesses have been reported yet.</p> :
             <div className="admin-list">
@@ -572,7 +658,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
             </div>
           )}
 
-          {/* REPORT LOG */}
           {reportSubTab === 'log' && (
             reports.length === 0 ? <p className="muted">No reports have been filed yet.</p> :
             <div className="admin-list">
@@ -598,7 +683,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
-      {/* ══════════════ BUSINESS VERIFICATION ══════════════ */}
       {mainTab === 'verification' && (
         submissions.length === 0 ? <p className="muted">No pending business verifications.</p> :
         <div className="admin-list">
@@ -649,7 +733,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
-      {/* ══════════════ BUSINESS CLAIMS ══════════════ */}
       {mainTab === 'claims' && (
         claims.length === 0 ? <p className="muted">No business claims yet.</p> :
         <div className="admin-list">
@@ -677,7 +760,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
-      {/* ══════════════ USER REPORTS ══════════════ */}
       {mainTab === 'userReports' && (
         userReports.length === 0 ? <p className="muted">No user reports yet.</p> :
         <div className="admin-list">
@@ -705,10 +787,226 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
-      {/* ══════════════ SUPPORT CHAT ══════════════ */}
+      {mainTab === 'transactions' && (
+        !moneyLoaded ? <SkeletonList count={6} /> :
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 18 }}>
+            <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{txnEntries.length}</div>
+              <div className="muted" style={{ fontSize: 11 }}>Entries shown</div>
+            </div>
+            <div style={{ background: '#E0F7EF', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#0D6E82' }}>{formatChecks(revenueTotal)}</div>
+              <div className="muted" style={{ fontSize: 11 }}>Platform revenue</div>
+            </div>
+            <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{formatKsh(checksToKsh(revenueTotal))}</div>
+              <div className="muted" style={{ fontSize: 11 }}>In real money</div>
+            </div>
+          </div>
+
+          <input
+            type="text"
+            placeholder="Search by transaction ID, order ID, username, business, M-Pesa ref…"
+            value={txnSearch}
+            onChange={(e) => setTxnSearch(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13.5, background: 'var(--surface)', color: 'var(--text)', marginBottom: 12, boxSizing: 'border-box' }}
+          />
+
+          <div className="filter-row" style={{ marginBottom: 18, flexWrap: 'wrap' }}>
+            <button className={`filter-btn ${txnFilter === 'all' ? 'on' : ''}`} onClick={() => setTxnFilter('all')}>All</button>
+            {Array.from(new Set(txnEntries.map((e) => e.kind))).map((k) => (
+              <button key={k} className={`filter-btn ${txnFilter === k ? 'on' : ''}`} onClick={() => setTxnFilter(k)}>
+                {TXN_KIND_LABELS[k] || k}
+              </button>
+            ))}
+          </div>
+
+          <div className="admin-list">
+            {txnEntries
+              .filter((e) => txnFilter === 'all' || e.kind === txnFilter)
+              .filter((e) => {
+                if (!txnSearch.trim()) return true
+                const q = txnSearch.toLowerCase()
+                return (
+                  e.id?.toLowerCase().includes(q) ||
+                  e.order_id?.toLowerCase().includes(q) ||
+                  e.reference?.toLowerCase().includes(q) ||
+                  e.profiles?.username?.toLowerCase().includes(q) ||
+                  e.wallets?.businesses?.name?.toLowerCase().includes(q) ||
+                  e.note?.toLowerCase().includes(q)
+                )
+              })
+              .map((e) => {
+                const positive = Number(e.amount) > 0
+                const owner = e.wallets?.owner_type === 'business'
+                  ? `🏢 ${e.wallets?.businesses?.name || 'business'}`
+                  : e.wallets?.owner_type === 'platform'
+                    ? '⬛ BizCheck'
+                    : `@${e.profiles?.username || 'user'}`
+                return (
+                  <div className="admin-row" key={e.id}>
+                    <div>
+                      <strong>{TXN_KIND_LABELS[e.kind] || e.kind}</strong> <span className="muted">— {owner}</span>
+                      {e.note && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{e.note}</div>}
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+                        <button onClick={() => copyTxnId(e.id)} className="link-btn" style={{ display: 'inline', margin: 0, fontSize: 11, fontFamily: 'monospace' }}>
+                          {copiedId === e.id ? '✓ copied' : `txn ${e.id.slice(0, 8)}`}
+                        </button>
+                        {e.order_id && (
+                          <button onClick={() => copyTxnId(e.order_id)} className="link-btn" style={{ display: 'inline', margin: 0, fontSize: 11, fontFamily: 'monospace' }}>
+                            {copiedId === e.order_id ? '✓ copied' : `order ${e.order_id.slice(0, 8)}`}
+                          </button>
+                        )}
+                        <span className="muted" style={{ fontSize: 11 }}>
+                          {new Date(e.created_at).toLocaleString('en-KE', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 700, color: positive ? '#0D6E82' : '#A32D2D' }}>
+                        {positive ? '+' : ''}{formatChecks(e.amount)}
+                      </div>
+                      <div className="muted" style={{ fontSize: 11 }}>bal {formatChecks(e.balance_after)}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            {txnEntries.length === 0 && <p className="muted">No transactions yet.</p>}
+          </div>
+        </div>
+      )}
+
+      {mainTab === 'escrow' && (
+        !moneyLoaded ? <SkeletonList count={4} /> :
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 18 }}>
+            <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{escrowOrders.length}</div>
+              <div className="muted" style={{ fontSize: 11 }}>Open orders</div>
+            </div>
+            <div style={{ background: '#FFF3E0', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#7C2D12' }}>
+                {escrowOrders.filter(o => o.status === 'admin_review' || (o.buyer_confirmed_at && o.seller_confirmed_at && !o.admin_confirmed_at)).length}
+              </div>
+              <div className="muted" style={{ fontSize: 11 }}>Need your approval</div>
+            </div>
+            <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{formatChecks(escrowOrders.reduce((s, o) => s + Number(o.total_checks), 0))}</div>
+              <div className="muted" style={{ fontSize: 11 }}>Value held</div>
+            </div>
+          </div>
+
+          <div className="admin-list">
+            {escrowOrders.length === 0 ? (
+              <p className="muted">No open escrow orders.</p>
+            ) : escrowOrders.map((o) => {
+              const flagged = o.status === 'admin_review'
+              const needsAdmin = flagged || (o.buyer_confirmed_at && o.seller_confirmed_at && !o.admin_confirmed_at)
+              return (
+                <div className="admin-row" key={o.id} style={{ flexWrap: 'wrap', borderLeft: `4px solid ${flagged ? '#EA580C' : needsAdmin ? '#1D9E75' : 'var(--border)'}` }}>
+                  <div>
+                    <strong>{o.product_name}</strong>
+                    <span className="muted"> — {o.businesses?.name}</span>
+                    <span className={`badge ${o.status === 'admin_review' ? 'badge-danger' : o.status === 'shipped' ? 'badge-pending' : 'badge-verified'}`} style={{ marginLeft: 8 }}>
+                      {o.status === 'admin_review' ? 'Needs review' : o.status}
+                    </span>
+                    <div style={{ fontWeight: 700, marginTop: 4 }}>
+                      {formatChecks(o.total_checks)} <span className="muted" style={{ fontWeight: 400 }}>({formatKsh(checksToKsh(o.total_checks))})</span>
+                    </div>
+                    {o.commission_checks > 0 && (
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        Seller payout: {formatChecks(o.seller_payout_checks)} · Commission: {formatChecks(o.commission_checks)}
+                      </div>
+                    )}
+                    {o.review_reason && (
+                      <div style={{ fontSize: 12.5, background: '#FFEDD5', color: '#7C2D12', borderRadius: 8, padding: '6px 10px', marginTop: 6 }}>
+                        <strong>Flagged:</strong> {o.review_reason}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                      <span className={`badge ${o.buyer_confirmed_at ? 'badge-verified' : 'badge-pending'}`}>
+                        {o.buyer_confirmed_at ? '✓ Buyer' : '○ Buyer'}
+                      </span>
+                      <span className={`badge ${o.seller_confirmed_at ? 'badge-verified' : 'badge-pending'}`}>
+                        {o.seller_confirmed_at ? '✓ Seller' : '○ Seller'}
+                      </span>
+                      <span className={`badge ${o.admin_confirmed_at ? 'badge-verified' : 'badge-pending'}`}>
+                        {o.admin_confirmed_at ? '✓ Admin' : '○ Admin'}
+                      </span>
+                    </div>
+                    <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+                      Ordered {new Date(o.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {o.shipped_at && ` · shipped ${new Date(o.shipped_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}`}
+                    </div>
+                  </div>
+                  <div className="admin-actions">
+                    {!o.admin_confirmed_at && (
+                      <button className="btn-small" onClick={() => approveEscrowRelease(o)}>Approve release</button>
+                    )}
+                    <button className="btn-ghost-small" style={{ color: '#A32D2D' }} onClick={() => adminRefundOrder(o)}>Refund buyer</button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {mainTab === 'withdrawals' && (
+        !moneyLoaded ? <SkeletonList count={4} /> :
+        <div>
+          <div className="filter-row" style={{ marginBottom: 18 }}>
+            {[
+              ['pending', `Pending (${withdrawals.filter(w => w.status === 'pending').length})`],
+              ['all', `All (${withdrawals.length})`],
+            ].map(([id, label]) => (
+              <button key={id} className={`filter-btn ${withdrawalFilter === id ? 'on' : ''}`} onClick={() => setWithdrawalFilter(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="admin-list">
+            {(withdrawalFilter === 'pending' ? withdrawals.filter(w => w.status === 'pending') : withdrawals).map((w) => (
+              <div className="admin-row" key={w.id} style={{ flexWrap: 'wrap' }}>
+                <div>
+                  <strong>@{w.profiles?.username || 'user'}</strong>
+                  <span className={`badge ${w.status === 'paid' ? 'badge-verified' : w.status === 'failed' ? 'badge-danger' : 'badge-pending'}`} style={{ marginLeft: 8 }}>
+                    {w.status}
+                  </span>
+                  <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                    Pay to: {w.phone} · {w.destination_type}
+                  </div>
+                  <div style={{ fontWeight: 700, marginTop: 4 }}>
+                    {formatKsh(w.net_amount_ksh ?? w.amount_ksh)} <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>net to send</span>
+                  </div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    Requested {formatKsh(w.amount_ksh)} ({formatChecks(w.checks_amount)}) — 2% fee: {formatChecks(w.fee_checks || 0)}
+                  </div>
+                  {w.provider_reference && <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Ref: {w.provider_reference}</div>}
+                  {w.failure_reason && <div style={{ fontSize: 11, marginTop: 4, color: '#A32D2D' }}>Failed: {w.failure_reason}</div>}
+                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                    Requested {new Date(w.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </div>
+                </div>
+                {w.status === 'pending' && (
+                  <div className="admin-actions">
+                    <button className="btn-small" onClick={() => markWithdrawalPaid(w)}>Mark as paid</button>
+                    <button className="btn-ghost-small" onClick={() => markWithdrawalFailed(w)}>Mark failed</button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {(withdrawalFilter === 'pending' ? withdrawals.filter(w => w.status === 'pending') : withdrawals).length === 0 && (
+              <p className="muted">Nothing here.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {mainTab === 'chat' && (
         <div style={{ display: 'flex', gap: 16, height: 520 }}>
-          {/* THREAD LIST */}
           <div style={{ width: 260, flexShrink: 0, border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '10px 14px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>
               Conversations ({chatThreads.length})
@@ -741,7 +1039,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
             </div>
           </div>
 
-          {/* ACTIVE THREAD */}
           <div style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {!activeThreadUserId ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -798,7 +1095,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
-      {/* BAN CODE MODAL — masked input, replaces window.prompt */}
       {banCodeModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, maxWidth: 380, width: '100%', border: '1px solid var(--border)' }}>
@@ -834,7 +1130,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   )
 }
 
-// ── Business row in "All Businesses" tab ──
 function BusinessAdminRow({ business: b, onSetStatus, onBan, onSendBizcode, thresholds, onSelectBusiness, onSelectUser }) {
   const needsFlagReview = b.unique_reporter_count >= thresholds.FLAG_THRESHOLD && b.status === 'verified'
   const needsScamReview = b.unique_reporter_count >= thresholds.SCAM_THRESHOLD && b.status !== 'scam'

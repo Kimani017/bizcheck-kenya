@@ -22,8 +22,6 @@ import AdminIdCheck from './pages/AdminIdCheck'
 import Messages from './pages/Messages'
 import WalletPage from './pages/WalletPage'
 import MyOrdersPage from './pages/MyOrdersPage'
-import AdminEscrowQueue from './pages/AdminEscrowQueue'
-import AdminWithdrawalQueue from './pages/AdminWithdrawalQueue'
 import EditViaLink from './pages/EditViaLink'
 import AccountChooser from './pages/AccountChooser'
 import B2BChat from './pages/B2BChat'
@@ -500,8 +498,6 @@ function App() {
               <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report' : 'Report a Scammer'}</button>
             )}
             {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
-            {isAdmin && <button className={page === 'adminEscrow' ? 'active' : ''} onClick={() => navigate('adminEscrow')}>Escrow</button>}
-            {isAdmin && <button className={page === 'adminWithdrawals' ? 'active' : ''} onClick={() => navigate('adminWithdrawals')}>Withdrawals</button>}
             {businessMode ? (
               <button className={page === 'bizDashboard' ? 'active' : ''} onClick={() => { setSelectedBusiness(businessMode); navigate('bizDashboard', { business: businessMode }) }}>🏢 {businessMode.name}</button>
             ) : isAdmin ? (
@@ -554,8 +550,6 @@ function App() {
               <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report' : 'Report a Scammer'}</button>
             )}
               {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
-            {isAdmin && <button className={page === 'adminEscrow' ? 'active' : ''} onClick={() => navigate('adminEscrow')}>Escrow</button>}
-            {isAdmin && <button className={page === 'adminWithdrawals' ? 'active' : ''} onClick={() => navigate('adminWithdrawals')}>Withdrawals</button>}
               {businessMode ? (
                 <button className={page === 'bizDashboard' ? 'active' : ''} onClick={() => { setSelectedBusiness(businessMode); navigate('bizDashboard', { business: businessMode }) }}>🏢 {businessMode.name}</button>
               ) : isAdmin ? (
@@ -631,8 +625,6 @@ function App() {
         {page === 'settings' && <Settings theme={theme} toggleTheme={toggleTheme} onBack={goBack} onLogout={handleLogout} onOpenSupport={() => navigate('support')} onOpenPricing={() => navigate('pricing')} onOpenPrivacy={() => navigate('privacy')} onOpenTerms={() => navigate('terms')} businessMode={businessMode} onSwitchToPersonal={() => { localStorage.removeItem(BUSINESS_MODE_KEY); setBusinessMode(null); navigate('home') }} />}
         {page === 'wallet' && <WalletPage currentUser={user} onBack={goBack} />}
         {page === 'myOrders' && <MyOrdersPage currentUser={user} onBack={goBack} onSelectBusiness={openBusiness} />}
-        {page === 'adminEscrow' && isAdmin && <AdminEscrowQueue onBack={goBack} />}
-        {page === 'adminWithdrawals' && isAdmin && <AdminWithdrawalQueue onBack={goBack} />}
         {page === 'support' && <Support onBack={goBack} currentUser={user} businessMode={businessMode} onInsufficientCredits={() => setShowCreditModal(true)} />}
         {page === 'pleads' && <Pleads onBack={goBack} onSelectBusiness={openBusiness} />}
         {page === 'messages' && <Messages currentUser={user} initialTargetId={messageTargetId} isAdmin={isAdmin} businessMode={businessMode} onBack={goBack} onInsufficientCredits={() => setShowCreditModal(true)} onMessageBusiness={openB2BChat} />}
