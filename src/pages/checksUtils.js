@@ -82,3 +82,9 @@ export function pendingKeys(order) {
   if (!order.admin_confirmed_at) missing.push('admin')
   return missing
 }
+
+// Deposit swap fee (shown as a separate line at checkout, doesn't reduce Checks received)
+export const SWAP_FEE_PERCENT = 3.5
+export function swapFeeKsh(amountKsh) {
+  return Math.round(amountKsh * SWAP_FEE_PERCENT) / 100
+}
