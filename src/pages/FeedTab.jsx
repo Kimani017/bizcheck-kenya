@@ -74,6 +74,22 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
           }))
         ).then(() => {})
       }
+      if (newPosts.length > 0 && currentUser?.id) {
+  supabase.from('post_views').insert(
+    newPosts.map((p) => ({
+      post_id:     p.id,
+      business_id: p.business_id,
+      viewer_id:   currentUser.id,
+      view_day:    new Date().toISOString().slice(0, 10),
+    }))
+  ).then(() => {})
+
+  // Tell the algorithm what we showed this user, so fatigue kicks in
+  // after repeated ignored impressions.
+  supabase.rpc('record_impressions', {
+    p_post_ids: newPosts.map((p) => p.id)
+  }).then(() => {})
+}
     }
     setLoading(false)
   }
