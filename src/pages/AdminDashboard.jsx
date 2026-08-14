@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { SkeletonList } from './Skeleton'
 import UserActivity from './UserActivity'
@@ -35,9 +35,12 @@ function AdminEmailComposer() {
   const [result, setResult] = useState(null)
   const [confirmBroadcast, setConfirmBroadcast] = useState(false)
   const [attachments, setAttachments] = useState([]) // [{ filename, content (base64) }]
+  const fileInputRef = useRef(null)
 
   function handleFileChange(e) {
-    const files = Array.from(e.target.files)
+    e.preventDefault()
+    e.stopPropagation()
+    const files = Array.from(e.target.files || [])
     const allowed = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg',
       'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
 
@@ -57,11 +60,18 @@ function AdminEmailComposer() {
       }
       reader.readAsDataURL(file)
     })
-    e.target.value = ''
+    // Reset input so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   function removeAttachment(index) {
     setAttachments((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  function openFilePicker(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (fileInputRef.current) fileInputRef.current.click()
   }
 
   async function handleSend() {
@@ -174,11 +184,23 @@ function AdminEmailComposer() {
 
       {/* ── Attachments ── */}
       <div style={{ marginBottom: 16 }}>
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Attachments</label>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, cursor: 'pointer' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Attachments</div>
+        {/* Hidden real input — triggered via ref, never via label */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+        />
+        <button
+          type="button"
+          onClick={openFilePicker}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, cursor: 'pointer', color: 'var(--text)' }}
+        >
           📎 Attach file
-          <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={handleFileChange} style={{ display: 'none' }} />
-        </label>
+        </button>
         <span className="muted" style={{ fontSize: 12, marginLeft: 10 }}>PDF, image, Word — max 5MB each</span>
 
         {attachments.length > 0 && (
@@ -186,7 +208,11 @@ function AdminEmailComposer() {
             {attachments.map((a, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 12px', fontSize: 13 }}>
                 <span>📄 {a.filename}</span>
-                <button onClick={() => removeAttachment(i)} style={{ background: 'none', border: 'none', color: '#A32D2D', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeAttachment(i) }}
+                  style={{ background: 'none', border: 'none', color: '#A32D2D', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}
+                >×</button>
               </div>
             ))}
           </div>
