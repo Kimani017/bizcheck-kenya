@@ -165,8 +165,8 @@ export default function BusinessStorePage({
 
       {/* Shared header — shown once, above both subtabs */}
       <div style={{ textAlign: 'center', marginBottom: 16, marginTop: 8 }}>
-        {business.photo_url ? (
-          <img src={business.photo_url} alt={business.name} style={{ width: 76, height: 76, borderRadius: '50%', objectFit: 'cover', marginBottom: 10, border: '2px solid var(--border)' }} />
+        {(business.logo_url || business.photo_url) ? (
+          <img src={business.logo_url || business.photo_url} alt={business.name} style={{ width: 76, height: 76, borderRadius: '50%', objectFit: 'cover', marginBottom: 10, border: '2px solid var(--border)' }} />
         ) : (
           <div style={{ width: 76, height: 76, borderRadius: '50%', background: 'var(--hover-bg)', margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30 }}>🏢</div>
         )}
