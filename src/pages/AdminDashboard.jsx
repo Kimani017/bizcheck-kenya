@@ -21,6 +21,176 @@ const TXN_KIND_LABELS = {
   commission: 'Commission',
 }
 
+// ─── Inline Email Composer ────────────────────────────────────────────────────
+// Kept inline so AdminDashboard stays a single file.
+// Calls the send-admin-email Edge Function which verifies admin role
+// before sending anything via Resend.
+function AdminEmailComposer() {
+  const [mode, setMode] = useState('individual') // 'individual' | 'broadcast'
+  const [recipientEmail, setRecipientEmail] = useState('')
+  const [target, setTarget] = useState('users') // 'users' | 'businesses' | 'both'
+  const [subject, setSubject] = useState('')
+  const [bodyHtml, setBodyHtml] = useState('')
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+  const [confirmBroadcast, setConfirmBroadcast] = useState(false)
+
+  async function handleSend() {
+    if (!subject.trim() || !bodyHtml.trim()) {
+      alert('Please fill in both subject and message.')
+      return
+    }
+    if (mode === 'individual' && !recipientEmail.trim()) {
+      alert('Please enter a recipient email.')
+      return
+    }
+    if (mode === 'broadcast' && !confirmBroadcast) {
+      alert('Please check the confirmation box before broadcasting.')
+      return
+    }
+
+    setSending(true)
+    setResult(null)
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-admin-email`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(
+            mode === 'individual'
+              ? { mode, recipientEmail, subject, bodyHtml }
+              : { mode, target, subject, bodyHtml }
+          ),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setResult({ success: false, message: data.error || 'Failed to send' })
+      } else if (mode === 'individual') {
+        setResult({ success: true, message: `Sent to ${data.sentTo}` })
+        setRecipientEmail('')
+      } else {
+        setResult({
+          success: true,
+          message: `Sent to ${data.sent} of ${data.totalRecipients} recipients.`,
+        })
+        setConfirmBroadcast(false)
+      }
+
+      setSubject('')
+      setBodyHtml('')
+    } catch (err) {
+      setResult({ success: false, message: 'Network error: ' + err.message })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: 600 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 20 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
+          <input type="radio" checked={mode === 'individual'} onChange={() => setMode('individual')} />
+          Send to one person
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
+          <input type="radio" checked={mode === 'broadcast'} onChange={() => setMode('broadcast')} />
+          Broadcast to many
+        </label>
+      </div>
+
+      {mode === 'individual' && (
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Recipient email</label>
+          <input
+            type="email"
+            value={recipientEmail}
+            onChange={(e) => setRecipientEmail(e.target.value)}
+            placeholder="user@example.com"
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface-2)', color: 'var(--text)', boxSizing: 'border-box' }}
+          />
+        </div>
+      )}
+
+      {mode === 'broadcast' && (
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Send to</label>
+          <select
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface-2)', color: 'var(--text)' }}
+          >
+            <option value="users">All individual users</option>
+            <option value="businesses">All businesses</option>
+            <option value="both">Everyone (users + businesses)</option>
+          </select>
+        </div>
+      )}
+
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Subject</label>
+        <input
+          type="text"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface-2)', color: 'var(--text)', boxSizing: 'border-box' }}
+        />
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+          Message <span className="muted" style={{ fontWeight: 400 }}>(HTML allowed — &lt;p&gt;, &lt;b&gt;, &lt;a href=""&gt;)</span>
+        </label>
+        <textarea
+          value={bodyHtml}
+          onChange={(e) => setBodyHtml(e.target.value)}
+          rows={10}
+          style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13, fontFamily: 'monospace', background: 'var(--surface-2)', color: 'var(--text)', boxSizing: 'border-box', resize: 'vertical' }}
+        />
+      </div>
+
+      {mode === 'broadcast' && (
+        <div style={{ marginBottom: 16, background: '#FFF3CD', padding: 14, borderRadius: 10, border: '1px solid #F59E0B' }}>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={confirmBroadcast}
+              onChange={(e) => setConfirmBroadcast(e.target.checked)}
+              style={{ marginTop: 2 }}
+            />
+            I understand this will email <strong style={{ margin: '0 4px' }}>every {target === 'both' ? 'user and business' : target}</strong> on BizCheck Kenya and cannot be undone.
+          </label>
+        </div>
+      )}
+
+      <button
+        onClick={handleSend}
+        disabled={sending}
+        style={{ padding: '11px 24px', background: sending ? 'var(--border)' : '#1D9E75', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: sending ? 'not-allowed' : 'pointer' }}
+      >
+        {sending ? 'Sending…' : mode === 'individual' ? 'Send Email' : 'Broadcast Email'}
+      </button>
+
+      {result && (
+        <p style={{ marginTop: 14, fontSize: 14, color: result.success ? '#0D6E82' : '#A32D2D', fontWeight: 600 }}>
+          {result.success ? '✓ ' : '✗ '}{result.message}
+        </p>
+      )}
+    </div>
+  )
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   const [mainTab, setMainTab] = useState('businesses')
   const [chatThreads, setChatThreads] = useState([])
@@ -174,9 +344,9 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
 
     const { data: sessionData } = await supabase.auth.getSession()
     try {
-      const res = await fetch('https://ubjndgyukfhngytfabnw.supabase.co/functions/v1/send-business-verified', {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-business-verified`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionData.session.access_token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionData.session.access_token}` },
         body: JSON.stringify({ email, name: business.owner_name || owner?.name, businessName: business.name, bizcode }),
       })
       if (!res.ok) throw new Error('Email failed')
@@ -388,7 +558,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     const { data: bizcode, error: codeError } = await supabase.rpc('finalize_business_verification', { p_business_id: businessId })
 
     await supabase.rpc('link_listing_payment', { p_submitter_id: sub.submitter_id, p_business_id: businessId })
-    if (codeError) { alert('Verified, but could not generate bizcode: ' + codeError.message); }
+    if (codeError) { alert('Verified, but could not generate bizcode: ' + codeError.message) }
 
     await supabase.from('submissions').update({
       status: 'approved', reviewed_by: currentAdminId, reviewed_at: new Date().toISOString(),
@@ -401,9 +571,9 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     if (bizcode) {
       const { data: sessionData } = await supabase.auth.getSession()
       try {
-        await fetch('https://ubjndgyukfhngytfabnw.supabase.co/functions/v1/send-business-verified', {
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-business-verified`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionData.session.access_token}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionData.session.access_token}` },
           body: JSON.stringify({ email: sub.owner_email || sub.email, name: sub.owner_name, businessName: sub.name, bizcode }),
         })
       } catch (e) { /* email failure shouldn't block approval */ }
@@ -478,12 +648,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   reports.forEach(r => {
     if (!r.business_id) return
     if (!reportedBusinessMap[r.business_id]) {
-      reportedBusinessMap[r.business_id] = {
-        business: r.businesses,
-        businessId: r.business_id,
-        reportCount: 0,
-        reports: [],
-      }
+      reportedBusinessMap[r.business_id] = { business: r.businesses, businessId: r.business_id, reportCount: 0, reports: [] }
     }
     reportedBusinessMap[r.business_id].reportCount++
     reportedBusinessMap[r.business_id].reports.push(r)
@@ -497,6 +662,19 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
     (b.unique_reporter_count >= SCAM_THRESHOLD && b.status !== 'scam')
   ).length
 
+  const tabs = [
+    ['businesses', 'All Businesses'],
+    ['reports', 'Reports'],
+    ['verification', `Business Verification${submissions.length ? ` (${submissions.length})` : ''}`],
+    ['userReports', `User Reports${userReports.filter(r => r.status === 'pending').length ? ` (${userReports.filter(r => r.status === 'pending').length})` : ''}`],
+    ['claims', `Claims${claims.filter(c => c.status === 'pending').length ? ` (${claims.filter(c => c.status === 'pending').length})` : ''}`],
+    ['transactions', 'Transactions'],
+    ['escrow', `Escrow${escrowOrders.filter(o => o.status === 'admin_review' || (o.buyer_confirmed_at && o.seller_confirmed_at && !o.admin_confirmed_at)).length ? ` (${escrowOrders.filter(o => o.status === 'admin_review' || (o.buyer_confirmed_at && o.seller_confirmed_at && !o.admin_confirmed_at)).length})` : ''}`],
+    ['withdrawals', `Withdrawals${withdrawals.filter(w => w.status === 'pending').length ? ` (${withdrawals.filter(w => w.status === 'pending').length})` : ''}`],
+    ['chat', `Support Chat${chatThreads.reduce((s, t) => s + t.unreadCount, 0) ? ` (${chatThreads.reduce((s, t) => s + t.unreadCount, 0)})` : ''}`],
+    ['email', 'Send Email'],  // ← new tab
+  ]
+
   return (
     <div className="section" style={{ maxWidth: 920 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
@@ -509,17 +687,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 0, flexWrap: 'wrap' }}>
-        {[
-          ['businesses', 'All Businesses'],
-          ['reports', 'Reports'],
-          ['verification', `Business Verification${submissions.length ? ` (${submissions.length})` : ''}`],
-          ['userReports', `User Reports${userReports.filter(r => r.status === 'pending').length ? ` (${userReports.filter(r => r.status === 'pending').length})` : ''}`],
-          ['claims', `Claims${claims.filter(c => c.status === 'pending').length ? ` (${claims.filter(c => c.status === 'pending').length})` : ''}`],
-          ['transactions', 'Transactions'],
-          ['escrow', `Escrow${escrowOrders.filter(o => o.status === 'admin_review' || (o.buyer_confirmed_at && o.seller_confirmed_at && !o.admin_confirmed_at)).length ? ` (${escrowOrders.filter(o => o.status === 'admin_review' || (o.buyer_confirmed_at && o.seller_confirmed_at && !o.admin_confirmed_at)).length})` : ''}`],
-          ['withdrawals', `Withdrawals${withdrawals.filter(w => w.status === 'pending').length ? ` (${withdrawals.filter(w => w.status === 'pending').length})` : ''}`],
-          ['chat', `Support Chat${chatThreads.reduce((s, t) => s + t.unreadCount, 0) ? ` (${chatThreads.reduce((s, t) => s + t.unreadCount, 0)})` : ''}`],
-        ].map(([id, label]) => (
+        {tabs.map(([id, label]) => (
           <button
             key={id}
             onClick={() => setMainTab(id)}
@@ -535,6 +703,10 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         ))}
       </div>
 
+      {/* ── Email tab ──────────────────────────────────────────────────────── */}
+      {mainTab === 'email' && <AdminEmailComposer />}
+
+      {/* ── All Businesses ─────────────────────────────────────────────────── */}
       {mainTab === 'businesses' && (
         <div>
           <div className="filter-row" style={{ marginBottom: 18 }}>
@@ -548,7 +720,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
               </button>
             ))}
           </div>
-
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {(bizSubTab === 'verified' ? verifiedBiz : bizSubTab === 'flagged' ? flaggedBiz : scamBiz).map((b) => (
               <BusinessAdminRow key={b.id} business={b} onSetStatus={setBusinessStatus} onBan={banBusiness} onSendBizcode={sendBizcode} thresholds={{ FLAG_THRESHOLD, SCAM_THRESHOLD }} onSelectBusiness={onSelectBusiness} onSelectUser={onSelectUser} />
@@ -560,6 +731,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
+      {/* ── Reports ────────────────────────────────────────────────────────── */}
       {mainTab === 'reports' && (
         <div>
           <div className="filter-row" style={{ marginBottom: 18 }}>
@@ -612,40 +784,18 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
                 return (
                   <div className="admin-row" key={rb.businessId} style={{ flexWrap: 'wrap' }}>
                     <div>
-                      <button
-                        onClick={() => {
-                          const full = getFullBusiness(rb.businessId)
-                          if (full) onSelectBusiness?.(full)
-                        }}
-                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
-                      >
+                      <button onClick={() => { const full = getFullBusiness(rb.businessId); if (full) onSelectBusiness?.(full) }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
                         <strong style={{ color: '#1D9E75', textDecoration: 'underline' }}>{biz?.name || 'Unknown business'}</strong>
                       </button>
-                      <span className={`badge ${biz?.status === 'verified' ? 'badge-verified' : biz?.status === 'scam' ? 'badge-danger' : 'badge-pending'}`} style={{ marginLeft: 8 }}>
-                        {biz?.status}
-                      </span>
+                      <span className={`badge ${biz?.status === 'verified' ? 'badge-verified' : biz?.status === 'scam' ? 'badge-danger' : 'badge-pending'}`} style={{ marginLeft: 8 }}>{biz?.status}</span>
                       {getFullBusiness(rb.businessId)?.owner_id && (
-                        <button
-                          onClick={() => onSelectUser?.(getFullBusiness(rb.businessId).owner_id)}
-                          className="link-btn"
-                          style={{ display: 'inline', margin: 0, marginLeft: 8, fontSize: 12 }}
-                        >
-                          👤 View owner profile
-                        </button>
+                        <button onClick={() => onSelectUser?.(getFullBusiness(rb.businessId).owner_id)} className="link-btn" style={{ display: 'inline', margin: 0, marginLeft: 8, fontSize: 12 }}>👤 View owner profile</button>
                       )}
                       <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
                         {count} unique reporter{count !== 1 ? 's' : ''} · {rb.reportCount} total report{rb.reportCount !== 1 ? 's' : ''}
                       </div>
-                      {needsScamReview && (
-                        <div style={{ color: '#A32D2D', fontSize: 12, fontWeight: 700, marginTop: 4 }}>
-                          🚨 {SCAM_THRESHOLD}+ reporters reached — consider marking as scam
-                        </div>
-                      )}
-                      {!needsScamReview && needsFlagReview && (
-                        <div style={{ color: '#854D0E', fontSize: 12, fontWeight: 700, marginTop: 4 }}>
-                          ⚠ {FLAG_THRESHOLD}+ reporters reached — consider flagging
-                        </div>
-                      )}
+                      {needsScamReview && <div style={{ color: '#A32D2D', fontSize: 12, fontWeight: 700, marginTop: 4 }}>🚨 {SCAM_THRESHOLD}+ reporters reached — consider marking as scam</div>}
+                      {!needsScamReview && needsFlagReview && <div style={{ color: '#854D0E', fontSize: 12, fontWeight: 700, marginTop: 4 }}>⚠ {FLAG_THRESHOLD}+ reporters reached — consider flagging</div>}
                     </div>
                     <div className="admin-actions">
                       {biz?.status !== 'flagged' && <button className="btn-ghost-small" onClick={() => setBusinessStatus(rb.businessId, 'flagged')}>Mark flagged</button>}
@@ -665,16 +815,10 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
                 <div className="admin-row" key={r.id}>
                   <div>
                     <strong>{r.business_name}</strong>
-                    <span className={`badge ${r.status === 'verified' ? 'badge-danger' : r.status === 'dismissed' ? 'badge-verified' : 'badge-pending'}`} style={{ marginLeft: 8 }}>
-                      {r.status}
-                    </span>
-                    <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-                      Reason: {r.scam_type.replace('_', ' ')} {r.amount_lost && `· Lost Ksh ${r.amount_lost}`}
-                    </div>
+                    <span className={`badge ${r.status === 'verified' ? 'badge-danger' : r.status === 'dismissed' ? 'badge-verified' : 'badge-pending'}`} style={{ marginLeft: 8 }}>{r.status}</span>
+                    <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>Reason: {r.scam_type.replace('_', ' ')} {r.amount_lost && `· Lost Ksh ${r.amount_lost}`}</div>
                     {r.description && <div style={{ fontSize: 13, marginTop: 4 }}>{r.description}</div>}
-                    <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                      Filed {new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </div>
+                    <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                   </div>
                 </div>
               ))}
@@ -683,6 +827,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
+      {/* ── Business Verification ───────────────────────────────────────────── */}
       {mainTab === 'verification' && (
         submissions.length === 0 ? <p className="muted">No pending business verifications.</p> :
         <div className="admin-list">
@@ -697,7 +842,6 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
                 {s.business_username && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Business username: @{s.business_username}</div>}
                 {(s.opening_time || s.closing_time) && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Hours: {s.opening_time || '—'} - {s.closing_time || '—'}</div>}
                 {s.other_branches && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Other branches: {s.other_branches}</div>}
-
                 {s.owner_name && (
                   <div style={{ marginTop: 10, background: 'var(--surface-2)', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>
                     <div style={{ fontWeight: 700, marginBottom: 4 }}>Applicant details</div>
@@ -713,19 +857,16 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
                     </div>
                   </div>
                 )}
-
                 <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
                   Submitted by:{' '}
                   {s.submitter_id ? (
-                    <button onClick={() => onSelectUser?.(s.submitter_id)} className="link-btn" style={{ display: 'inline', margin: 0, fontSize: 12 }}>
-                      {s.profiles?.name || s.profiles?.username || 'Unknown'} →
-                    </button>
+                    <button onClick={() => onSelectUser?.(s.submitter_id)} className="link-btn" style={{ display: 'inline', margin: 0, fontSize: 12 }}>{s.profiles?.name || s.profiles?.username || 'Unknown'} →</button>
                   ) : (s.profiles?.name || s.profiles?.username || 'Unknown')}
                   {' · '}{new Date(s.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </div>
               </div>
               <div className="admin-actions">
-                <button className="btn-small" onClick={() => approveSubmission(s)} disabled={processingSubmission === s.id}>{processingSubmission === s.id ? "Approving…" : "Approve"}</button>
+                <button className="btn-small" onClick={() => approveSubmission(s)} disabled={processingSubmission === s.id}>{processingSubmission === s.id ? 'Approving…' : 'Approve'}</button>
                 <button className="btn-ghost-small" onClick={() => rejectSubmission(s)}>Reject</button>
               </div>
             </div>
@@ -733,6 +874,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
+      {/* ── Claims ─────────────────────────────────────────────────────────── */}
       {mainTab === 'claims' && (
         claims.length === 0 ? <p className="muted">No business claims yet.</p> :
         <div className="admin-list">
@@ -741,13 +883,9 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
               <div>
                 <strong>{claimNamesById[c.business_id] || 'Business'}</strong>
                 <span className={`badge ${c.status === 'pending' ? 'badge-pending' : c.status === 'approved' ? 'badge-verified' : 'badge-danger'}`} style={{ marginLeft: 8 }}>{c.status}</span>
-                <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-                  Claimed by {claimNamesById[c.claimant_id] || 'user'} · ID number: {c.id_number}
-                </div>
+                <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>Claimed by {claimNamesById[c.claimant_id] || 'user'} · ID number: {c.id_number}</div>
                 {c.reason && <div style={{ fontSize: 13, marginTop: 4 }}>{c.reason}</div>}
-                <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                  {new Date(c.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </div>
+                <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{new Date(c.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
               </div>
               {c.status === 'pending' && (
                 <div className="admin-actions">
@@ -760,6 +898,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
+      {/* ── User Reports ───────────────────────────────────────────────────── */}
       {mainTab === 'userReports' && (
         userReports.length === 0 ? <p className="muted">No user reports yet.</p> :
         <div className="admin-list">
@@ -768,13 +907,9 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
               <div>
                 <strong>@{r.reported?.username || 'user'}</strong>
                 <span className={`badge ${r.status === 'pending' ? 'badge-pending' : r.status === 'banned' ? 'badge-danger' : 'badge-verified'}`} style={{ marginLeft: 8 }}>{r.status}</span>
-                <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-                  Reported by @{r.reporter?.username || 'user'} · {r.reason}
-                </div>
+                <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>Reported by @{r.reporter?.username || 'user'} · {r.reason}</div>
                 {r.details && <div style={{ fontSize: 13, marginTop: 4 }}>{r.details}</div>}
-                <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                  {new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </div>
+                <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{new Date(r.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
               </div>
               {r.status === 'pending' && (
                 <div className="admin-actions">
@@ -787,6 +922,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
+      {/* ── Transactions ───────────────────────────────────────────────────── */}
       {mainTab === 'transactions' && (
         !moneyLoaded ? <SkeletonList count={6} /> :
         <div>
@@ -804,69 +940,38 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
               <div className="muted" style={{ fontSize: 11 }}>In real money</div>
             </div>
           </div>
-
-          <input
-            type="text"
-            placeholder="Search by transaction ID, order ID, username, business, M-Pesa ref…"
-            value={txnSearch}
-            onChange={(e) => setTxnSearch(e.target.value)}
-            style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13.5, background: 'var(--surface)', color: 'var(--text)', marginBottom: 12, boxSizing: 'border-box' }}
-          />
-
+          <input type="text" placeholder="Search by transaction ID, order ID, username, business, M-Pesa ref…" value={txnSearch} onChange={(e) => setTxnSearch(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13.5, background: 'var(--surface)', color: 'var(--text)', marginBottom: 12, boxSizing: 'border-box' }} />
           <div className="filter-row" style={{ marginBottom: 18, flexWrap: 'wrap' }}>
             <button className={`filter-btn ${txnFilter === 'all' ? 'on' : ''}`} onClick={() => setTxnFilter('all')}>All</button>
             {Array.from(new Set(txnEntries.map((e) => e.kind))).map((k) => (
-              <button key={k} className={`filter-btn ${txnFilter === k ? 'on' : ''}`} onClick={() => setTxnFilter(k)}>
-                {TXN_KIND_LABELS[k] || k}
-              </button>
+              <button key={k} className={`filter-btn ${txnFilter === k ? 'on' : ''}`} onClick={() => setTxnFilter(k)}>{TXN_KIND_LABELS[k] || k}</button>
             ))}
           </div>
-
           <div className="admin-list">
             {txnEntries
               .filter((e) => txnFilter === 'all' || e.kind === txnFilter)
               .filter((e) => {
                 if (!txnSearch.trim()) return true
                 const q = txnSearch.toLowerCase()
-                return (
-                  e.id?.toLowerCase().includes(q) ||
-                  e.order_id?.toLowerCase().includes(q) ||
-                  e.reference?.toLowerCase().includes(q) ||
-                  e.profiles?.username?.toLowerCase().includes(q) ||
-                  e.wallets?.businesses?.name?.toLowerCase().includes(q) ||
-                  e.note?.toLowerCase().includes(q)
-                )
+                return e.id?.toLowerCase().includes(q) || e.order_id?.toLowerCase().includes(q) || e.reference?.toLowerCase().includes(q) || e.profiles?.username?.toLowerCase().includes(q) || e.wallets?.businesses?.name?.toLowerCase().includes(q) || e.note?.toLowerCase().includes(q)
               })
               .map((e) => {
                 const positive = Number(e.amount) > 0
-                const owner = e.wallets?.owner_type === 'business'
-                  ? `🏢 ${e.wallets?.businesses?.name || 'business'}`
-                  : e.wallets?.owner_type === 'platform'
-                    ? '⬛ BizCheck'
-                    : `@${e.profiles?.username || 'user'}`
+                const owner = e.wallets?.owner_type === 'business' ? `🏢 ${e.wallets?.businesses?.name || 'business'}` : e.wallets?.owner_type === 'platform' ? '⬛ BizCheck' : `@${e.profiles?.username || 'user'}`
                 return (
                   <div className="admin-row" key={e.id}>
                     <div>
                       <strong>{TXN_KIND_LABELS[e.kind] || e.kind}</strong> <span className="muted">— {owner}</span>
                       {e.note && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{e.note}</div>}
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
-                        <button onClick={() => copyTxnId(e.id)} className="link-btn" style={{ display: 'inline', margin: 0, fontSize: 11, fontFamily: 'monospace' }}>
-                          {copiedId === e.id ? '✓ copied' : `txn ${e.id.slice(0, 8)}`}
-                        </button>
-                        {e.order_id && (
-                          <button onClick={() => copyTxnId(e.order_id)} className="link-btn" style={{ display: 'inline', margin: 0, fontSize: 11, fontFamily: 'monospace' }}>
-                            {copiedId === e.order_id ? '✓ copied' : `order ${e.order_id.slice(0, 8)}`}
-                          </button>
-                        )}
-                        <span className="muted" style={{ fontSize: 11 }}>
-                          {new Date(e.created_at).toLocaleString('en-KE', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                        <button onClick={() => copyTxnId(e.id)} className="link-btn" style={{ display: 'inline', margin: 0, fontSize: 11, fontFamily: 'monospace' }}>{copiedId === e.id ? '✓ copied' : `txn ${e.id.slice(0, 8)}`}</button>
+                        {e.order_id && <button onClick={() => copyTxnId(e.order_id)} className="link-btn" style={{ display: 'inline', margin: 0, fontSize: 11, fontFamily: 'monospace' }}>{copiedId === e.order_id ? '✓ copied' : `order ${e.order_id.slice(0, 8)}`}</button>}
+                        <span className="muted" style={{ fontSize: 11 }}>{new Date(e.created_at).toLocaleString('en-KE', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 700, color: positive ? '#0D6E82' : '#A32D2D' }}>
-                        {positive ? '+' : ''}{formatChecks(e.amount)}
-                      </div>
+                      <div style={{ fontWeight: 700, color: positive ? '#0D6E82' : '#A32D2D' }}>{positive ? '+' : ''}{formatChecks(e.amount)}</div>
                       <div className="muted" style={{ fontSize: 11 }}>bal {formatChecks(e.balance_after)}</div>
                     </div>
                   </div>
@@ -877,6 +982,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
+      {/* ── Escrow ─────────────────────────────────────────────────────────── */}
       {mainTab === 'escrow' && (
         !moneyLoaded ? <SkeletonList count={4} /> :
         <div>
@@ -886,9 +992,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
               <div className="muted" style={{ fontSize: 11 }}>Open orders</div>
             </div>
             <div style={{ background: '#FFF3E0', borderRadius: 10, padding: '12px 14px' }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#7C2D12' }}>
-                {escrowOrders.filter(o => o.status === 'admin_review' || (o.buyer_confirmed_at && o.seller_confirmed_at && !o.admin_confirmed_at)).length}
-              </div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#7C2D12' }}>{escrowOrders.filter(o => o.status === 'admin_review' || (o.buyer_confirmed_at && o.seller_confirmed_at && !o.admin_confirmed_at)).length}</div>
               <div className="muted" style={{ fontSize: 11 }}>Need your approval</div>
             </div>
             <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '12px 14px' }}>
@@ -896,54 +1000,27 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
               <div className="muted" style={{ fontSize: 11 }}>Value held</div>
             </div>
           </div>
-
           <div className="admin-list">
-            {escrowOrders.length === 0 ? (
-              <p className="muted">No open escrow orders.</p>
-            ) : escrowOrders.map((o) => {
+            {escrowOrders.length === 0 ? <p className="muted">No open escrow orders.</p> : escrowOrders.map((o) => {
               const flagged = o.status === 'admin_review'
               const needsAdmin = flagged || (o.buyer_confirmed_at && o.seller_confirmed_at && !o.admin_confirmed_at)
               return (
                 <div className="admin-row" key={o.id} style={{ flexWrap: 'wrap', borderLeft: `4px solid ${flagged ? '#EA580C' : needsAdmin ? '#1D9E75' : 'var(--border)'}` }}>
                   <div>
-                    <strong>{o.product_name}</strong>
-                    <span className="muted"> — {o.businesses?.name}</span>
-                    <span className={`badge ${o.status === 'admin_review' ? 'badge-danger' : o.status === 'shipped' ? 'badge-pending' : 'badge-verified'}`} style={{ marginLeft: 8 }}>
-                      {o.status === 'admin_review' ? 'Needs review' : o.status}
-                    </span>
-                    <div style={{ fontWeight: 700, marginTop: 4 }}>
-                      {formatChecks(o.total_checks)} <span className="muted" style={{ fontWeight: 400 }}>({formatKsh(checksToKsh(o.total_checks))})</span>
-                    </div>
-                    {o.commission_checks > 0 && (
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        Seller payout: {formatChecks(o.seller_payout_checks)} · Commission: {formatChecks(o.commission_checks)}
-                      </div>
-                    )}
-                    {o.review_reason && (
-                      <div style={{ fontSize: 12.5, background: '#FFEDD5', color: '#7C2D12', borderRadius: 8, padding: '6px 10px', marginTop: 6 }}>
-                        <strong>Flagged:</strong> {o.review_reason}
-                      </div>
-                    )}
+                    <strong>{o.product_name}</strong><span className="muted"> — {o.businesses?.name}</span>
+                    <span className={`badge ${o.status === 'admin_review' ? 'badge-danger' : o.status === 'shipped' ? 'badge-pending' : 'badge-verified'}`} style={{ marginLeft: 8 }}>{o.status === 'admin_review' ? 'Needs review' : o.status}</span>
+                    <div style={{ fontWeight: 700, marginTop: 4 }}>{formatChecks(o.total_checks)} <span className="muted" style={{ fontWeight: 400 }}>({formatKsh(checksToKsh(o.total_checks))})</span></div>
+                    {o.commission_checks > 0 && <div className="muted" style={{ fontSize: 12 }}>Seller payout: {formatChecks(o.seller_payout_checks)} · Commission: {formatChecks(o.commission_checks)}</div>}
+                    {o.review_reason && <div style={{ fontSize: 12.5, background: '#FFEDD5', color: '#7C2D12', borderRadius: 8, padding: '6px 10px', marginTop: 6 }}><strong>Flagged:</strong> {o.review_reason}</div>}
                     <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                      <span className={`badge ${o.buyer_confirmed_at ? 'badge-verified' : 'badge-pending'}`}>
-                        {o.buyer_confirmed_at ? '✓ Buyer' : '○ Buyer'}
-                      </span>
-                      <span className={`badge ${o.seller_confirmed_at ? 'badge-verified' : 'badge-pending'}`}>
-                        {o.seller_confirmed_at ? '✓ Seller' : '○ Seller'}
-                      </span>
-                      <span className={`badge ${o.admin_confirmed_at ? 'badge-verified' : 'badge-pending'}`}>
-                        {o.admin_confirmed_at ? '✓ Admin' : '○ Admin'}
-                      </span>
+                      <span className={`badge ${o.buyer_confirmed_at ? 'badge-verified' : 'badge-pending'}`}>{o.buyer_confirmed_at ? '✓ Buyer' : '○ Buyer'}</span>
+                      <span className={`badge ${o.seller_confirmed_at ? 'badge-verified' : 'badge-pending'}`}>{o.seller_confirmed_at ? '✓ Seller' : '○ Seller'}</span>
+                      <span className={`badge ${o.admin_confirmed_at ? 'badge-verified' : 'badge-pending'}`}>{o.admin_confirmed_at ? '✓ Admin' : '○ Admin'}</span>
                     </div>
-                    <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
-                      Ordered {new Date(o.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      {o.shipped_at && ` · shipped ${new Date(o.shipped_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}`}
-                    </div>
+                    <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>Ordered {new Date(o.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}{o.shipped_at && ` · shipped ${new Date(o.shipped_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}`}</div>
                   </div>
                   <div className="admin-actions">
-                    {!o.admin_confirmed_at && (
-                      <button className="btn-small" onClick={() => approveEscrowRelease(o)}>Approve release</button>
-                    )}
+                    {!o.admin_confirmed_at && <button className="btn-small" onClick={() => approveEscrowRelease(o)}>Approve release</button>}
                     <button className="btn-ghost-small" style={{ color: '#A32D2D' }} onClick={() => adminRefundOrder(o)}>Refund buyer</button>
                   </div>
                 </div>
@@ -953,42 +1030,27 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
+      {/* ── Withdrawals ────────────────────────────────────────────────────── */}
       {mainTab === 'withdrawals' && (
         !moneyLoaded ? <SkeletonList count={4} /> :
         <div>
           <div className="filter-row" style={{ marginBottom: 18 }}>
-            {[
-              ['pending', `Pending (${withdrawals.filter(w => w.status === 'pending').length})`],
-              ['all', `All (${withdrawals.length})`],
-            ].map(([id, label]) => (
-              <button key={id} className={`filter-btn ${withdrawalFilter === id ? 'on' : ''}`} onClick={() => setWithdrawalFilter(id)}>
-                {label}
-              </button>
+            {[['pending', `Pending (${withdrawals.filter(w => w.status === 'pending').length})`], ['all', `All (${withdrawals.length})`]].map(([id, label]) => (
+              <button key={id} className={`filter-btn ${withdrawalFilter === id ? 'on' : ''}`} onClick={() => setWithdrawalFilter(id)}>{label}</button>
             ))}
           </div>
-
           <div className="admin-list">
             {(withdrawalFilter === 'pending' ? withdrawals.filter(w => w.status === 'pending') : withdrawals).map((w) => (
               <div className="admin-row" key={w.id} style={{ flexWrap: 'wrap' }}>
                 <div>
                   <strong>@{w.profiles?.username || 'user'}</strong>
-                  <span className={`badge ${w.status === 'paid' ? 'badge-verified' : w.status === 'failed' ? 'badge-danger' : 'badge-pending'}`} style={{ marginLeft: 8 }}>
-                    {w.status}
-                  </span>
-                  <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-                    Pay to: {w.phone} · {w.destination_type}
-                  </div>
-                  <div style={{ fontWeight: 700, marginTop: 4 }}>
-                    {formatKsh(w.net_amount_ksh ?? w.amount_ksh)} <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>net to send</span>
-                  </div>
-                  <div className="muted" style={{ fontSize: 12 }}>
-                    Requested {formatKsh(w.amount_ksh)} ({formatChecks(w.checks_amount)}) — 2% fee: {formatChecks(w.fee_checks || 0)}
-                  </div>
+                  <span className={`badge ${w.status === 'paid' ? 'badge-verified' : w.status === 'failed' ? 'badge-danger' : 'badge-pending'}`} style={{ marginLeft: 8 }}>{w.status}</span>
+                  <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>Pay to: {w.phone} · {w.destination_type}</div>
+                  <div style={{ fontWeight: 700, marginTop: 4 }}>{formatKsh(w.net_amount_ksh ?? w.amount_ksh)} <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>net to send</span></div>
+                  <div className="muted" style={{ fontSize: 12 }}>Requested {formatKsh(w.amount_ksh)} ({formatChecks(w.checks_amount)}) — 2% fee: {formatChecks(w.fee_checks || 0)}</div>
                   {w.provider_reference && <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Ref: {w.provider_reference}</div>}
                   {w.failure_reason && <div style={{ fontSize: 11, marginTop: 4, color: '#A32D2D' }}>Failed: {w.failure_reason}</div>}
-                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                    Requested {new Date(w.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </div>
+                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{new Date(w.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                 </div>
                 {w.status === 'pending' && (
                   <div className="admin-actions">
@@ -998,96 +1060,55 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
                 )}
               </div>
             ))}
-            {(withdrawalFilter === 'pending' ? withdrawals.filter(w => w.status === 'pending') : withdrawals).length === 0 && (
-              <p className="muted">Nothing here.</p>
-            )}
+            {(withdrawalFilter === 'pending' ? withdrawals.filter(w => w.status === 'pending') : withdrawals).length === 0 && <p className="muted">Nothing here.</p>}
           </div>
         </div>
       )}
 
+      {/* ── Support Chat ───────────────────────────────────────────────────── */}
       {mainTab === 'chat' && (
         <div style={{ display: 'flex', gap: 16, height: 520 }}>
           <div style={{ width: 260, flexShrink: 0, border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '10px 14px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>
-              Conversations ({chatThreads.length})
-            </div>
+            <div style={{ padding: '10px 14px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Conversations ({chatThreads.length})</div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              {chatThreads.length === 0 ? (
-                <p className="muted" style={{ padding: 14, fontSize: 13 }}>No support messages yet.</p>
-              ) : chatThreads.map((t) => (
-                <button
-                  key={t.userId}
-                  onClick={() => openThread(t.userId)}
-                  style={{
-                    width: '100%', textAlign: 'left', padding: '12px 14px', border: 'none',
-                    borderBottom: '1px solid var(--border)',
-                    background: activeThreadUserId === t.userId ? 'var(--hover-bg)' : 'transparent',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ fontSize: 13 }}>{t.profile?.name || t.profile?.username || 'User'}</strong>
-                    {t.unreadCount > 0 && (
-                      <span style={{ background: '#E24B4A', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '1px 6px' }}>{t.unreadCount}</span>
-                    )}
-                  </div>
-                  <div className="muted" style={{ fontSize: 12, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {t.lastMessage.message}
-                  </div>
-                </button>
-              ))}
+              {chatThreads.length === 0 ? <p className="muted" style={{ padding: 14, fontSize: 13 }}>No support messages yet.</p> :
+                chatThreads.map((t) => (
+                  <button key={t.userId} onClick={() => openThread(t.userId)} style={{ width: '100%', textAlign: 'left', padding: '12px 14px', border: 'none', borderBottom: '1px solid var(--border)', background: activeThreadUserId === t.userId ? 'var(--hover-bg)' : 'transparent', cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ fontSize: 13 }}>{t.profile?.name || t.profile?.username || 'User'}</strong>
+                      {t.unreadCount > 0 && <span style={{ background: '#E24B4A', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '1px 6px' }}>{t.unreadCount}</span>}
+                    </div>
+                    <div className="muted" style={{ fontSize: 12, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.lastMessage.message}</div>
+                  </button>
+                ))}
             </div>
           </div>
-
           <div style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {!activeThreadUserId ? (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <p className="muted">Select a conversation to view messages.</p>
-              </div>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p className="muted">Select a conversation to view messages.</p></div>
             ) : (
               <>
                 <div style={{ padding: '10px 16px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>
                   {chatThreads.find(t => t.userId === activeThreadUserId)?.profile?.name || 'User'}
-                  <button className="link-btn" style={{ display: 'inline', margin: 0, marginLeft: 10, fontSize: 12 }} onClick={() => onSelectUser?.(activeThreadUserId)}>
-                    View profile →
-                  </button>
+                  <button className="link-btn" style={{ display: 'inline', margin: 0, marginLeft: 10, fontSize: 12 }} onClick={() => onSelectUser?.(activeThreadUserId)}>View profile →</button>
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {threadMessages.map((m) => {
                     const isMeAdmin = !m.is_bot && m.sender_id !== m.thread_user_id
-                    const isBot = m.is_bot
                     return (
                       <div key={m.id} style={{ display: 'flex', justifyContent: isMeAdmin ? 'flex-end' : 'flex-start' }}>
-                        <div style={{
-                          maxWidth: '70%', padding: '10px 14px', borderRadius: 14,
-                          background: isMeAdmin ? '#1D9E75' : 'var(--hover-bg)',
-                          color: isMeAdmin ? '#fff' : 'var(--text)', fontSize: 14,
-                          border: isBot ? '1.5px solid #17A2B8' : 'none',
-                        }}>
-                          {isBot && <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 2, color: '#17A2B8' }}>🤖 Bot auto-reply</div>}
+                        <div style={{ maxWidth: '70%', padding: '10px 14px', borderRadius: 14, background: isMeAdmin ? '#1D9E75' : 'var(--hover-bg)', color: isMeAdmin ? '#fff' : 'var(--text)', fontSize: 14, border: m.is_bot ? '1.5px solid #17A2B8' : 'none' }}>
+                          {m.is_bot && <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 2, color: '#17A2B8' }}>🤖 Bot auto-reply</div>}
                           {m.message}
-                          <div style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>
-                            {new Date(m.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}
-                          </div>
+                          <div style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>{new Date(m.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}</div>
                         </div>
                       </div>
                     )
                   })}
                 </div>
                 <div style={{ padding: 12, borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-                  <input
-                    value={chatText}
-                    onChange={(e) => setChatText(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && sendChatReply()}
-                    placeholder="Reply…"
-                    style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface)', color: 'var(--text)' }}
-                  />
-                  <button
-                    onClick={sendChatReply}
-                    style={{ padding: '10px 20px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    Send
-                  </button>
+                  <input value={chatText} onChange={(e) => setChatText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendChatReply()} placeholder="Reply…" style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface)', color: 'var(--text)' }} />
+                  <button onClick={sendChatReply} style={{ padding: '10px 20px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Send</button>
                 </div>
               </>
             )}
@@ -1095,6 +1116,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
         </div>
       )}
 
+      {/* ── Ban code modal ─────────────────────────────────────────────────── */}
       {banCodeModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: 'var(--surface)', borderRadius: 16, padding: 28, maxWidth: 380, width: '100%', border: '1px solid var(--border)' }}>
@@ -1103,22 +1125,10 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
               <h3 style={{ marginBottom: 6, color: 'var(--text-strong)' }}>Ban authorization required</h3>
               <p className="muted" style={{ fontSize: 13 }}>Enter the ban code from the superadmin to proceed.</p>
             </div>
-            <textarea
-              value={banReason}
-              onChange={(e) => setBanReason(e.target.value)}
-              rows={3}
-              placeholder="Reason for the ban (required — shown to the superadmin and on the public banned page)"
-              autoFocus
-              style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface-2)', color: 'var(--text)', marginBottom: 10, boxSizing: 'border-box', resize: 'vertical' }}
-            />
-            <input
-              type="password"
-              value={banCodeInput}
-              onChange={(e) => setBanCodeInput(e.target.value.toUpperCase())}
-              onKeyDown={(e) => e.key === 'Enter' && submitBan(banCodeModal, banCodeInput.trim())}
-              placeholder="BAN-XXXXXXXX"
-              style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 15, textAlign: 'center', letterSpacing: 2, fontFamily: 'monospace', background: 'var(--surface-2)', color: 'var(--text)', marginBottom: 14, boxSizing: 'border-box' }}
-            />
+            <textarea value={banReason} onChange={(e) => setBanReason(e.target.value)} rows={3} placeholder="Reason for the ban (required — shown to the superadmin and on the public banned page)" autoFocus
+              style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13, background: 'var(--surface-2)', color: 'var(--text)', marginBottom: 10, boxSizing: 'border-box', resize: 'vertical' }} />
+            <input type="password" value={banCodeInput} onChange={(e) => setBanCodeInput(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === 'Enter' && submitBan(banCodeModal, banCodeInput.trim())} placeholder="BAN-XXXXXXXX"
+              style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 15, textAlign: 'center', letterSpacing: 2, fontFamily: 'monospace', background: 'var(--surface-2)', color: 'var(--text)', marginBottom: 14, boxSizing: 'border-box' }} />
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn-primary" style={{ flex: 1 }} onClick={() => submitBan(banCodeModal, banCodeInput.trim())}>Ban business</button>
               <button className="btn-ghost-small" onClick={() => setBanCodeModal(null)}>Cancel</button>
@@ -1133,14 +1143,10 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
 function BusinessAdminRow({ business: b, onSetStatus, onBan, onSendBizcode, thresholds, onSelectBusiness, onSelectUser }) {
   const needsFlagReview = b.unique_reporter_count >= thresholds.FLAG_THRESHOLD && b.status === 'verified'
   const needsScamReview = b.unique_reporter_count >= thresholds.SCAM_THRESHOLD && b.status !== 'scam'
-
   return (
     <div className="admin-row" style={{ flexWrap: 'wrap' }}>
       <div>
-        <button
-          onClick={() => onSelectBusiness?.(b)}
-          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
-        >
+        <button onClick={() => onSelectBusiness?.(b)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
           <strong style={{ color: '#1D9E75', textDecoration: 'underline' }}>{b.name}</strong>
         </button>
         {b.admin_reviewed && (
@@ -1150,25 +1156,13 @@ function BusinessAdminRow({ business: b, onSetStatus, onBan, onSendBizcode, thre
         )}
         <span className="muted"> — {b.category}</span>
         <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--text-muted)' }}>👁 {b.view_count || 0} view{b.view_count === 1 ? '' : 's'}</span>
-        {b.owner_id && (
-          <button
-            onClick={() => onSelectUser?.(b.owner_id)}
-            className="link-btn"
-            style={{ display: 'inline', margin: 0, marginLeft: 8, fontSize: 12 }}
-          >
-            👤 View owner profile
-          </button>
-        )}
-        <div className="muted" style={{ fontSize: 13 }}>
-          Trust: {b.trust_score}% · {b.legit_votes} legit / {b.scam_votes} scam votes · {b.unique_reporter_count} unique reporters
-        </div>
+        {b.owner_id && <button onClick={() => onSelectUser?.(b.owner_id)} className="link-btn" style={{ display: 'inline', margin: 0, marginLeft: 8, fontSize: 12 }}>👤 View owner profile</button>}
+        <div className="muted" style={{ fontSize: 13 }}>Trust: {b.trust_score}% · {b.legit_votes} legit / {b.scam_votes} scam votes · {b.unique_reporter_count} unique reporters</div>
         {needsScamReview && <div style={{ color: '#A32D2D', fontSize: 12, fontWeight: 700, marginTop: 4 }}>🚨 Reached scam threshold ({thresholds.SCAM_THRESHOLD}+ reporters)</div>}
         {!needsScamReview && needsFlagReview && <div style={{ color: '#854D0E', fontSize: 12, fontWeight: 700, marginTop: 4 }}>⚠ Reached flag threshold ({thresholds.FLAG_THRESHOLD}+ reporters)</div>}
       </div>
       <div className="admin-actions">
-        {b.status === 'verified' && !b.bizcode && (
-          <button className="btn-small" style={{ background: '#0D6E82' }} onClick={() => onSendBizcode(b)}>🔑 Send bizcode</button>
-        )}
+        {b.status === 'verified' && !b.bizcode && <button className="btn-small" style={{ background: '#0D6E82' }} onClick={() => onSendBizcode(b)}>🔑 Send bizcode</button>}
         {b.status !== 'verified' && <button className="btn-ghost-small" onClick={() => onSetStatus(b.id, 'verified')}>Verify</button>}
         {b.status !== 'flagged' && <button className="btn-ghost-small" onClick={() => onSetStatus(b.id, 'flagged')}>Flag</button>}
         {b.status !== 'scam' && <button className="btn-small" style={{ background: '#A32D2D' }} onClick={() => onSetStatus(b.id, 'scam')}>Mark scam</button>}
