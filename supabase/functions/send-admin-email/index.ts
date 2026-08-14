@@ -1,11 +1,6 @@
 // supabase/functions/send-admin-email/index.ts
 // Sends transactional or broadcast emails via Resend.
-// Only callable by users with role 'admin' or 'superadmin'.
-//
-// Prerequisites (Supabase secrets):
-//   RESEND_API_KEY   – your Resend API key (re_xxxxxxxxxxxx)
-//   ADMIN_FROM_EMAIL – e.g. "BizCheck Kenya <noreply@mail.bizcheckkenya.com>"
-//                      Must be a domain you've verified in Resend.
+// Supports PDF attachments from local upload or Supabase Storage.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -16,8 +11,8 @@ const CORS = {
 }
 
 const RESEND_URL = 'https://api.resend.com/emails'
-const BATCH_SIZE = 50   // Resend batch limit per request
-const BATCH_DELAY = 500 // ms between batches to stay within rate limits
+const BATCH_SIZE = 50
+const BATCH_DELAY = 500
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
@@ -27,13 +22,11 @@ serve(async (req: Request) => {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) return json({ error: 'Missing Authorization header' }, 401)
 
-    // Use service role to bypass RLS so we can read profiles.role
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // Verify the caller's JWT to get their user_id
     const anonClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_ANON_KEY')!,
@@ -42,7 +35,6 @@ serve(async (req: Request) => {
     const { data: { user }, error: authError } = await anonClient.auth.getUser()
     if (authError || !user) return json({ error: 'Unauthorized' }, 401)
 
-    // Check admin role
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -54,35 +46,64 @@ serve(async (req: Request) => {
     }
 
     // ── 2. Parse body ────────────────────────────────────────────────────────
+    // Body can contain:
+    //   attachments: [{ filename, content (base64), storagePath }]
+    //   storagePath  → file is fetched from Supabase Storage
+    //   content      → file was uploaded directly (base64 string)
     const body = await req.json()
-    const { mode, subject, bodyHtml } = body
+    const { mode, subject, bodyHtml, attachments = [] } = body
 
     if (!mode || !subject?.trim() || !bodyHtml?.trim()) {
       return json({ error: 'mode, subject, and bodyHtml are required' }, 400)
     }
 
-    const fromAddress = Deno.env.get('ADMIN_FROM_EMAIL') ?? 'BizCheck Kenya <noreply@mail.bizcheckkenya.com>'
+    // ── 3. Resolve attachments ───────────────────────────────────────────────
+    const resolvedAttachments: { filename: string; content: string }[] = []
+
+    for (const att of attachments) {
+      if (att.storagePath) {
+        // Fetch from Supabase Storage
+        const { data, error } = await supabase.storage
+          .from(att.bucket || 'business-documents')
+          .download(att.storagePath)
+
+        if (error || !data) {
+          console.error('Storage fetch error:', error)
+          continue
+        }
+
+        const arrayBuffer = await data.arrayBuffer()
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+        resolvedAttachments.push({ filename: att.filename, content: base64 })
+      } else if (att.content) {
+        // Already base64 from direct upload
+        resolvedAttachments.push({ filename: att.filename, content: att.content })
+      }
+    }
+
+    const fromAddress = Deno.env.get('ADMIN_FROM_EMAIL') ?? 'BizCheck Kenya <noreply@support.bizcheckkenya.com>'
     const resendKey = Deno.env.get('RESEND_API_KEY')!
 
-    // ── 3. Individual send ───────────────────────────────────────────────────
+    // ── 4. Individual send ───────────────────────────────────────────────────
     if (mode === 'individual') {
       const { recipientEmail } = body
-      if (!recipientEmail?.trim()) return json({ error: 'recipientEmail is required for individual mode' }, 400)
+      if (!recipientEmail?.trim()) return json({ error: 'recipientEmail is required' }, 400)
 
       const result = await sendEmail(resendKey, {
         from: fromAddress,
         to: [recipientEmail.trim()],
         subject,
         html: wrapHtml(bodyHtml, subject),
+        attachments: resolvedAttachments,
       })
 
       if (!result.ok) return json({ error: result.error }, 502)
       return json({ sentTo: recipientEmail.trim() }, 200)
     }
 
-    // ── 4. Broadcast send ────────────────────────────────────────────────────
+    // ── 5. Broadcast send ────────────────────────────────────────────────────
     if (mode === 'broadcast') {
-      const { target } = body // 'users' | 'businesses' | 'both'
+      const { target } = body
 
       const emails = new Set<string>()
 
@@ -91,11 +112,10 @@ serve(async (req: Request) => {
           .from('profiles')
           .select('email')
           .not('email', 'is', null)
-        users?.forEach((u) => { if (u.email) emails.add(u.email) })
+        users?.forEach((u: any) => { if (u.email) emails.add(u.email) })
       }
 
       if (target === 'businesses' || target === 'both') {
-        // Use owner_email from businesses; fall back to owner's profile email
         const { data: bizOwners } = await supabase
           .from('businesses')
           .select('owner_email, owner_id')
@@ -103,8 +123,8 @@ serve(async (req: Request) => {
           .not('owner_id', 'is', null)
 
         const ownerIds = (bizOwners || [])
-          .filter(b => !b.owner_email)
-          .map(b => b.owner_id)
+          .filter((b: any) => !b.owner_email)
+          .map((b: any) => b.owner_id)
 
         if (ownerIds.length > 0) {
           const { data: ownerProfiles } = await supabase
@@ -113,14 +133,13 @@ serve(async (req: Request) => {
             .in('id', ownerIds)
 
           const profileMap: Record<string, string> = {}
-          ownerProfiles?.forEach((p) => { if (p.email) profileMap[p.id] = p.email })
-
-          bizOwners?.forEach((b) => {
+          ownerProfiles?.forEach((p: any) => { if (p.email) profileMap[p.id] = p.email })
+          bizOwners?.forEach((b: any) => {
             const email = b.owner_email || profileMap[b.owner_id]
             if (email) emails.add(email)
           })
         } else {
-          bizOwners?.forEach((b) => { if (b.owner_email) emails.add(b.owner_email) })
+          bizOwners?.forEach((b: any) => { if (b.owner_email) emails.add(b.owner_email) })
         }
       }
 
@@ -131,13 +150,9 @@ serve(async (req: Request) => {
         return json({ sent: 0, totalRecipients: 0, message: 'No recipients found.' }, 200)
       }
 
-      // Send in batches
       let sent = 0
       for (let i = 0; i < allEmails.length; i += BATCH_SIZE) {
         const batch = allEmails.slice(i, i + BATCH_SIZE)
-
-        // Resend recommends individual sends for transactional mail to avoid
-        // unsubscribes affecting others. For small batches we send individually.
         await Promise.allSettled(
           batch.map((email) =>
             sendEmail(resendKey, {
@@ -145,13 +160,13 @@ serve(async (req: Request) => {
               to: [email],
               subject,
               html: wrapHtml(bodyHtml, subject),
+              attachments: resolvedAttachments,
             })
           )
         ).then((results) => {
-          sent += results.filter((r) => r.status === 'fulfilled' && r.value.ok).length
+          sent += results.filter((r) => r.status === 'fulfilled' && (r.value as any).ok).length
         })
 
-        // Pause between batches
         if (i + BATCH_SIZE < allEmails.length) {
           await new Promise((r) => setTimeout(r, BATCH_DELAY))
         }
@@ -175,21 +190,34 @@ async function sendEmail(apiKey: string, payload: {
   to: string[]
   subject: string
   html: string
+  attachments?: { filename: string; content: string }[]
   reply_to?: string
 }) {
   try {
+    const body: Record<string, unknown> = {
+      from: payload.from,
+      to: payload.to,
+      subject: payload.subject,
+      html: payload.html,
+      reply_to: payload.reply_to ?? Deno.env.get('ADMIN_REPLY_TO') ?? payload.from,
+    }
+
+    if (payload.attachments && payload.attachments.length > 0) {
+      body.attachments = payload.attachments.map((a) => ({
+        filename: a.filename,
+        content: a.content, // base64
+      }))
+    }
+
     const res = await fetch(RESEND_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        ...payload,
-        // Add a reply-to so users can reply to a monitored inbox
-        reply_to: payload.reply_to ?? Deno.env.get('ADMIN_REPLY_TO') ?? payload.from,
-      }),
+      body: JSON.stringify(body),
     })
+
     if (!res.ok) {
       const err = await res.text()
       return { ok: false, error: err }
@@ -211,7 +239,6 @@ function wrapHtml(content: string, title: string): string {
     body{margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
     .wrap{max-width:600px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e4e4e7}
     .header{background:#1D9E75;padding:24px 32px}
-    .header img{height:36px}
     .header-title{color:#fff;font-size:22px;font-weight:700;margin:0;margin-top:8px}
     .body{padding:32px;color:#18181b;font-size:15px;line-height:1.7}
     .footer{padding:20px 32px;background:#f4f4f5;font-size:12px;color:#71717a;text-align:center}

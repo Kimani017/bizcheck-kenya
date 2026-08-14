@@ -26,14 +26,43 @@ const TXN_KIND_LABELS = {
 // Calls the send-admin-email Edge Function which verifies admin role
 // before sending anything via Resend.
 function AdminEmailComposer() {
-  const [mode, setMode] = useState('individual') // 'individual' | 'broadcast'
+  const [mode, setMode] = useState('individual')
   const [recipientEmail, setRecipientEmail] = useState('')
-  const [target, setTarget] = useState('users') // 'users' | 'businesses' | 'both'
+  const [target, setTarget] = useState('users')
   const [subject, setSubject] = useState('')
   const [bodyHtml, setBodyHtml] = useState('')
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
   const [confirmBroadcast, setConfirmBroadcast] = useState(false)
+  const [attachments, setAttachments] = useState([]) // [{ filename, content (base64) }]
+
+  function handleFileChange(e) {
+    const files = Array.from(e.target.files)
+    const allowed = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg',
+      'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+
+    files.forEach((file) => {
+      if (!allowed.includes(file.type)) {
+        alert(`${file.name} is not a supported file type. Use PDF, image, or Word doc.`)
+        return
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert(`${file.name} is too large. Max size is 5MB per file.`)
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        const base64 = ev.target.result.split(',')[1]
+        setAttachments((prev) => [...prev, { filename: file.name, content: base64 }])
+      }
+      reader.readAsDataURL(file)
+    })
+    e.target.value = ''
+  }
+
+  function removeAttachment(index) {
+    setAttachments((prev) => prev.filter((_, i) => i !== index))
+  }
 
   async function handleSend() {
     if (!subject.trim() || !bodyHtml.trim()) {
@@ -56,19 +85,16 @@ function AdminEmailComposer() {
       const { data: sessionData } = await supabase.auth.getSession()
       const accessToken = sessionData?.session?.access_token
 
+      const payload = mode === 'individual'
+        ? { mode, recipientEmail, subject, bodyHtml, attachments }
+        : { mode, target, subject, bodyHtml, attachments }
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-admin-email`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify(
-            mode === 'individual'
-              ? { mode, recipientEmail, subject, bodyHtml }
-              : { mode, target, subject, bodyHtml }
-          ),
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify(payload),
         }
       )
 
@@ -80,15 +106,13 @@ function AdminEmailComposer() {
         setResult({ success: true, message: `Sent to ${data.sentTo}` })
         setRecipientEmail('')
       } else {
-        setResult({
-          success: true,
-          message: `Sent to ${data.sent} of ${data.totalRecipients} recipients.`,
-        })
+        setResult({ success: true, message: `Sent to ${data.sent} of ${data.totalRecipients} recipients.` })
         setConfirmBroadcast(false)
       }
 
       setSubject('')
       setBodyHtml('')
+      setAttachments([])
     } catch (err) {
       setResult({ success: false, message: 'Network error: ' + err.message })
     } finally {
@@ -125,11 +149,8 @@ function AdminEmailComposer() {
       {mode === 'broadcast' && (
         <div style={{ marginBottom: 14 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Send to</label>
-          <select
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-            style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface-2)', color: 'var(--text)' }}
-          >
+          <select value={target} onChange={(e) => setTarget(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface-2)', color: 'var(--text)' }}>
             <option value="users">All individual users</option>
             <option value="businesses">All businesses</option>
             <option value="both">Everyone (users + businesses)</option>
@@ -139,45 +160,50 @@ function AdminEmailComposer() {
 
       <div style={{ marginBottom: 14 }}>
         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Subject</label>
-        <input
-          type="text"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface-2)', color: 'var(--text)', boxSizing: 'border-box' }}
-        />
+        <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)}
+          style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 14, background: 'var(--surface-2)', color: 'var(--text)', boxSizing: 'border-box' }} />
       </div>
 
       <div style={{ marginBottom: 14 }}>
         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
           Message <span className="muted" style={{ fontWeight: 400 }}>(HTML allowed — &lt;p&gt;, &lt;b&gt;, &lt;a href=""&gt;)</span>
         </label>
-        <textarea
-          value={bodyHtml}
-          onChange={(e) => setBodyHtml(e.target.value)}
-          rows={10}
-          style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13, fontFamily: 'monospace', background: 'var(--surface-2)', color: 'var(--text)', boxSizing: 'border-box', resize: 'vertical' }}
-        />
+        <textarea value={bodyHtml} onChange={(e) => setBodyHtml(e.target.value)} rows={10}
+          style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13, fontFamily: 'monospace', background: 'var(--surface-2)', color: 'var(--text)', boxSizing: 'border-box', resize: 'vertical' }} />
+      </div>
+
+      {/* ── Attachments ── */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Attachments</label>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, cursor: 'pointer' }}>
+          📎 Attach file
+          <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={handleFileChange} style={{ display: 'none' }} />
+        </label>
+        <span className="muted" style={{ fontSize: 12, marginLeft: 10 }}>PDF, image, Word — max 5MB each</span>
+
+        {attachments.length > 0 && (
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {attachments.map((a, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 12px', fontSize: 13 }}>
+                <span>📄 {a.filename}</span>
+                <button onClick={() => removeAttachment(i)} style={{ background: 'none', border: 'none', color: '#A32D2D', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {mode === 'broadcast' && (
         <div style={{ marginBottom: 16, background: '#FFF3CD', padding: 14, borderRadius: 10, border: '1px solid #F59E0B' }}>
           <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={confirmBroadcast}
-              onChange={(e) => setConfirmBroadcast(e.target.checked)}
-              style={{ marginTop: 2 }}
-            />
+            <input type="checkbox" checked={confirmBroadcast} onChange={(e) => setConfirmBroadcast(e.target.checked)} style={{ marginTop: 2 }} />
             I understand this will email <strong style={{ margin: '0 4px' }}>every {target === 'both' ? 'user and business' : target}</strong> on BizCheck Kenya and cannot be undone.
           </label>
         </div>
       )}
 
-      <button
-        onClick={handleSend}
-        disabled={sending}
-        style={{ padding: '11px 24px', background: sending ? 'var(--border)' : '#1D9E75', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: sending ? 'not-allowed' : 'pointer' }}
-      >
+      <button onClick={handleSend} disabled={sending}
+        style={{ padding: '11px 24px', background: sending ? 'var(--border)' : '#1D9E75', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: sending ? 'not-allowed' : 'pointer' }}>
         {sending ? 'Sending…' : mode === 'individual' ? 'Send Email' : 'Broadcast Email'}
       </button>
 
