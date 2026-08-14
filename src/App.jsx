@@ -591,9 +591,9 @@ function App() {
       )}
 
       <div className="main-content">
-        {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} />}
+        {page === 'home' && <Home onSelectBusiness={openBusiness} goToReport={() => goToReport(null)} currentUser={user} />}
         {page === 'feed' && <FeedTab onSelectBusiness={openBusiness} currentUser={user} />}
-        {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} businessMode={businessMode} initialMarketSubtab={b2bTargetBusiness ? 'b2b' : 'browse'} initialB2BTarget={b2bTargetBusiness} onInsufficientCredits={() => setShowCreditModal(true)} />}
+        {page === 'directory' && <Directory onSelectBusiness={openBusiness} goToSubmit={goToSubmit} businessMode={businessMode} currentUser={user} initialMarketSubtab={b2bTargetBusiness ? 'b2b' : 'browse'} initialB2BTarget={b2bTargetBusiness} onInsufficientCredits={() => setShowCreditModal(true)} />}
         {page === 'report' && (
           businessMode
             ? <ReportTab currentUser={user} businessMode={businessMode} onMessageUser={openMessages} onDone={() => navigate('home')} onInsufficientCredits={() => setShowCreditModal(true)} />
