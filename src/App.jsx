@@ -40,8 +40,6 @@ import './App.css'
 
 const NAV_KEY = 'bizcheck_nav_state'
 const BUSINESS_MODE_KEY = 'bizcheck_business_mode_id'
-// How long the app remembers where you were after you leave it. Within this
-// window you come back to the same page; after it, you land on Home.
 const NAV_IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 
 function App() {
@@ -63,7 +61,7 @@ function App() {
   const [editLinkToken, setEditLinkToken] = useState(null)
   const [needsAccountChoice, setNeedsAccountChoice] = useState(false)
   const [ownedVerifiedBusinesses, setOwnedVerifiedBusinesses] = useState([])
-  const [businessMode, setBusinessMode] = useState(null) // the business object, or null for personal
+  const [businessMode, setBusinessMode] = useState(null)
   const [b2bTargetBusiness, setB2bTargetBusiness] = useState(null)
   const [showCreditModal, setShowCreditModal] = useState(false)
   const [restoring, setRestoring] = useState(true)
@@ -87,7 +85,6 @@ function App() {
     return () => window.removeEventListener('resize', checkSize)
   }, [])
 
-  // Close mobile menu whenever the page changes
   useEffect(() => { setMobileMenuOpen(false) }, [page])
 
   function navigate(newPage, opts = {}) {
@@ -115,7 +112,6 @@ function App() {
 
   async function restoreNavState(navState) {
     if (!navState) return
-    // Never restore to the auth page — if we have a session we belong on home
     if (navState.page === 'auth') { setPage('home'); return }
     isRestoringRef.current = true
     try {
@@ -151,11 +147,11 @@ function App() {
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
-        // User clicked the reset link — show the set-new-password screen
         setUser(session?.user || null)
         setRecoveringPassword(true)
         return
       }
+
       if (event === 'SIGNED_OUT') {
         setUser(null)
         setIsAdmin(false)
@@ -169,39 +165,49 @@ function App() {
         setBusinessMode(null)
         return
       }
-      if (event === 'SIGNED_IN') {
-        setUser(session?.user || null)
-        if (session?.user) {
-          supabase.from('profiles').select('is_banned').eq('id', session.user.id).single().then(({ data: banCheck }) => {
-            if (banCheck?.is_banned) {
-              alert('Your account has been banned from BizCheck Kenya for violating our community guidelines.')
-              supabase.auth.signOut()
-            }
-          })
-          checkUsername(session.user.id)
-          setSelectedBusiness(null)
-          setSelectedUserId(null)
-          setPage('home')
-          localStorage.setItem(NAV_KEY, JSON.stringify({ page: 'home', savedAt: Date.now() }))
-          window.history.replaceState({ page: 'home' }, '', '#home')
 
-          // Check if this account is admin/superadmin — if so, require
-          // email OTP + personal Admin ID before granting access, unless
-          // this browser session already completed that check.
-          supabase.from('profiles').select('role').eq('id', session.user.id).single().then(({ data: profile }) => {
-            const admin = !!profile && ['admin', 'superadmin'].includes(profile.role)
-            setIsAdmin(admin)
-            setIsSuperadmin(profile?.role === 'superadmin')
-            const alreadyVerified = sessionStorage.getItem('bizcheck_admin_verified') === 'true'
-            if (admin && !alreadyVerified) {
-              setNeedsLoginOtp(true)
-            } else if (!admin) {
-              checkAccountChoice(session.user.id)
-            }
-          })
-        }
+      if (event === 'SIGNED_IN') {
+        const incomingUserId = session?.user?.id
+        // ── KEY FIX ────────────────────────────────────────────────────────────
+        // Supabase fires SIGNED_IN on EVERY token refresh, not just on a real
+        // new login. File pickers, camera access, and tab focus all trigger a
+        // token refresh which fires this event — causing the app to redirect to
+        // home. We guard against this by only acting when the user ID actually
+        // changes (i.e. a genuine new sign-in), ignoring refreshes for the same
+        // already-logged-in user.
+        setUser((prevUser) => {
+          const isNewLogin = !prevUser || prevUser.id !== incomingUserId
+          if (isNewLogin && session?.user) {
+            supabase.from('profiles').select('is_banned').eq('id', session.user.id).single().then(({ data: banCheck }) => {
+              if (banCheck?.is_banned) {
+                alert('Your account has been banned from BizCheck Kenya for violating our community guidelines.')
+                supabase.auth.signOut()
+              }
+            })
+            checkUsername(session.user.id)
+            setSelectedBusiness(null)
+            setSelectedUserId(null)
+            setPage('home')
+            localStorage.setItem(NAV_KEY, JSON.stringify({ page: 'home', savedAt: Date.now() }))
+            window.history.replaceState({ page: 'home' }, '', '#home')
+
+            supabase.from('profiles').select('role').eq('id', session.user.id).single().then(({ data: profile }) => {
+              const admin = !!profile && ['admin', 'superadmin'].includes(profile.role)
+              setIsAdmin(admin)
+              setIsSuperadmin(profile?.role === 'superadmin')
+              const alreadyVerified = sessionStorage.getItem('bizcheck_admin_verified') === 'true'
+              if (admin && !alreadyVerified) {
+                setNeedsLoginOtp(true)
+              } else if (!admin) {
+                checkAccountChoice(session.user.id)
+              }
+            })
+          }
+          return session?.user || prevUser
+        })
         return
       }
+
       if (session?.user) {
         setUser(session.user)
         checkAdmin(session.user.id)
@@ -215,7 +221,6 @@ function App() {
   }, [])
 
   async function init() {
-    // Check for an edit-link deep link before doing anything else
     const hash = window.location.hash
     if (hash.startsWith('#editlink-')) {
       setEditLinkToken(hash.replace('#editlink-', ''))
@@ -244,10 +249,7 @@ function App() {
       try {
         const navState = JSON.parse(saved)
         const idleFor = Date.now() - (navState.savedAt || 0)
-
         if (idleFor > NAV_IDLE_TIMEOUT_MS) {
-          // Been away a while — start fresh on Home rather than dropping
-          // them back into a stale page.
           localStorage.removeItem(NAV_KEY)
           setPage('home')
           window.history.replaceState({ page: 'home' }, '', '#home')
@@ -294,8 +296,6 @@ function App() {
     const alreadyChosen = localStorage.getItem('bizcheck_account_choice') === 'true'
 
     if (alreadyChosen) {
-      // Restore whichever business (if any) was previously chosen this
-      // session, instead of silently falling back to personal on refresh.
       const savedBusinessId = localStorage.getItem(BUSINESS_MODE_KEY)
       if (savedBusinessId) {
         const restoredBiz = (data || []).find((b) => b.id === savedBusinessId)
@@ -324,8 +324,6 @@ function App() {
 
     const isOwnBusiness = user && business.owner_id === user.id
 
-    // Charge 1 credit for personal-account users viewing someone else's business.
-    // Bypassed for: business mode (their own charge model), admins, and viewing your own listing.
     if (user && !businessMode && !isAdmin && !isOwnBusiness) {
       const result = await chargeUserCredits('view_business_profile', 1)
       if (!result.ok) {
@@ -450,7 +448,6 @@ function App() {
     )
   }
 
-  // Not logged in — no sidebar, simple top nav for landing/auth
   if (!user) {
     return (
       <div className="app">
@@ -476,11 +473,9 @@ function App() {
     )
   }
 
-  // Logged in — centered horizontal top nav
   return (
     <div className="app">
       {!isMobileView ? (
-        // DESKTOP — centered horizontal navbar
         <nav className="navbar navbar-grid">
           <div className="logo" onClick={() => navigate('home')}>
             <span className="logo-dot"></span> BizCheck Kenya
@@ -517,7 +512,6 @@ function App() {
           </div>
         </nav>
       ) : (
-        // MOBILE — hamburger button (left) + vertical slide-in drawer
         <>
           <div className="mobile-topbar">
             <button className="hamburger-btn" onClick={() => setMobileMenuOpen(true)} aria-label="Open menu"><Icon.Menu size={22} /></button>
@@ -543,12 +537,12 @@ function App() {
               <button className={page === 'feed' ? 'active' : ''} onClick={() => navigate('feed')}>Feed</button>
               <button className={page === 'directory' ? 'active' : ''} onClick={() => navigate('directory')}>Market</button>
               {isSuperadmin ? (
-              <button className={page === 'b2bOversight' ? 'active' : ''} onClick={() => navigate('b2bOversight')}>B2B</button>
-            ) : isAdmin ? (
-              <button className={page === 'userActivity' ? 'active' : ''} onClick={() => navigate('userActivity')}>User Activity</button>
-            ) : (
-              <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report' : 'Report a Scammer'}</button>
-            )}
+                <button className={page === 'b2bOversight' ? 'active' : ''} onClick={() => navigate('b2bOversight')}>B2B</button>
+              ) : isAdmin ? (
+                <button className={page === 'userActivity' ? 'active' : ''} onClick={() => navigate('userActivity')}>User Activity</button>
+              ) : (
+                <button className={page === 'report' ? 'active' : ''} onClick={() => goToReport(null)}>{businessMode ? 'Report' : 'Report a Scammer'}</button>
+              )}
               {isAdmin && <button className={page === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>Admin</button>}
               {businessMode ? (
                 <button className={page === 'bizDashboard' ? 'active' : ''} onClick={() => { setSelectedBusiness(businessMode); navigate('bizDashboard', { business: businessMode }) }}>🏢 {businessMode.name}</button>
@@ -560,14 +554,13 @@ function App() {
               <button className={page === 'messages' ? 'active' : ''} onClick={() => openMessages()}>Messages</button>
               <button className={page === 'wallet' ? 'active' : ''} onClick={() => navigate('wallet')}>Wallet</button>
               <button className={page === 'myOrders' ? 'active' : ''} onClick={() => navigate('myOrders')}>My Orders</button>
-            <button className={page === 'notifications' ? 'active' : ''} onClick={() => navigate('notifications')} aria-label="Notifications"><Icon.Bell size={19} /></button>
+              <button className={page === 'notifications' ? 'active' : ''} onClick={() => navigate('notifications')} aria-label="Notifications"><Icon.Bell size={19} /></button>
               <div className="mobile-menu-divider" />
               <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Settings</button>
               {isSuperadmin && <button className={page === 'pleads' ? 'active' : ''} onClick={() => navigate('pleads')}>Pleads</button>}
             </div>
           </div>
 
-          {/* BOTTOM NAV BAR — mobile only */}
           <nav className="bottom-nav">
             <button className={page === 'home' ? 'active' : ''} onClick={() => navigate('home')}>
               <Icon.Home size={21} /><label>Home</label>
@@ -662,6 +655,7 @@ function App() {
           />
         )}
       </div>
+
       {showCreditModal && (
         <InsufficientCreditsModal
           isBusiness={!!businessMode}
