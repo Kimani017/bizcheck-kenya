@@ -7,22 +7,27 @@ import { chargeBusinessCredits } from './CreditGate'
 
 const CATEGORIES = ['All', 'Electronics', 'Fashion', 'Food', 'Phones', 'Home', 'Beauty', 'Other']
 
-export default function Directory({ onSelectBusiness, goToSubmit, businessMode, initialMarketSubtab, initialB2BTarget, onInsufficientCredits }) {
+export default function Directory({ onSelectBusiness, goToSubmit, businessMode, currentUser, initialMarketSubtab, initialB2BTarget, onInsufficientCredits }) {
   const [businesses, setBusinesses] = useState([])
   const [activeCat, setActiveCat] = useState('All')
   const [loading, setLoading] = useState(true)
-  const [marketSubtab, setMarketSubtab] = useState(initialMarketSubtab || 'browse') // browse | doBiz | b2b
+  const [marketSubtab, setMarketSubtab] = useState(initialMarketSubtab || 'browse')
 
-  useEffect(() => {
-    loadBusinesses()
-  }, [activeCat])
+  useEffect(() => { loadBusinesses() }, [activeCat])
 
   async function loadBusinesses() {
     setLoading(true)
-    let q = supabase.from('businesses').select('*').eq('status', 'verified').order('trust_score', { ascending: false })
-    if (activeCat !== 'All') q = q.eq('category', activeCat)
-    const { data, error } = await q
-    if (error) console.error(error)
+
+    // Use the ranked businesses RPC — blends trust, engagement, ratings,
+    // recency, personalisation, and locality into a single ranked list.
+    const { data, error } = await supabase.rpc('get_ranked_businesses', {
+      p_user_id:  currentUser?.id ?? null,
+      p_category: activeCat === 'All' ? null : activeCat,
+      p_limit:    60,
+      p_offset:   0,
+    })
+
+    if (error) console.error('get_ranked_businesses error:', error)
     setBusinesses(data || [])
     setLoading(false)
   }
@@ -51,26 +56,19 @@ export default function Directory({ onSelectBusiness, goToSubmit, businessMode, 
         </div>
       </div>
 
-      {/* DO BIZ — search for a business to message */}
       {businessMode && marketSubtab === 'doBiz' && (
         <DoBizSearch myBusiness={businessMode} onSelectBusiness={onSelectBusiness} onInsufficientCredits={onInsufficientCredits} />
       )}
 
-      {/* B2B MESSAGES — embedded conversation list + chat */}
       {businessMode && marketSubtab === 'b2b' && (
         <B2BChat myBusiness={businessMode} initialTargetBusiness={initialB2BTarget} onBack={() => setMarketSubtab('browse')} onInsufficientCredits={onInsufficientCredits} />
       )}
 
-      {/* NORMAL BROWSE GRID */}
       {marketSubtab === 'browse' && (
         <>
           <div className="filter-row">
             {CATEGORIES.map((c) => (
-              <button
-                key={c}
-                className={`filter-btn ${activeCat === c ? 'on' : ''}`}
-                onClick={() => setActiveCat(c)}
-              >
+              <button key={c} className={`filter-btn ${activeCat === c ? 'on' : ''}`} onClick={() => setActiveCat(c)}>
                 {c}
               </button>
             ))}
@@ -92,7 +90,6 @@ export default function Directory({ onSelectBusiness, goToSubmit, businessMode, 
   )
 }
 
-// ── DO BIZ — search a business, click its card to message it ──
 function DoBizSearch({ myBusiness, onSelectBusiness, onInsufficientCredits }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])

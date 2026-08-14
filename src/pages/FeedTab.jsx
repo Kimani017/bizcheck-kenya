@@ -23,27 +23,55 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
 
   async function loadPage(pageIndex) {
     setLoading(true)
-    const from = pageIndex * PAGE_SIZE
-    const to = from + PAGE_SIZE - 1
 
-    const { data, error } = await supabase
-      .from('market_posts')
-      .select('*, businesses(id, name, business_username, logo_url, description)')
-      .eq('status', 'approved')
-      .order('created_at', { ascending: false })
-      .range(from, to)
+    // Use the ranked feed RPC — personalised, diverse, with exploration slots.
+    // Falls back gracefully if the user is logged out (p_user_id = null gives
+    // a pure score-based ranking with no personalisation).
+    const { data, error } = await supabase.rpc('get_ranked_feed', {
+      p_user_id: currentUser?.id ?? null,
+      p_limit:   PAGE_SIZE,
+      p_offset:  pageIndex * PAGE_SIZE,
+    })
 
     if (!error) {
-      const newPosts = data || []
+      const newPosts = (data || []).map((row) => ({
+        id:               row.post_id,
+        business_id:      row.business_id,
+        product_id:       row.product_id,
+        caption:          row.caption,
+        market_photo_url: row.market_photo_url,
+        created_at:       row.created_at,
+        is_exploration:   row.is_exploration,
+        // Flatten business fields so the rest of the component works exactly
+        // as before — no changes needed to FeedPost or any child component.
+        businesses: {
+          id:               row.business_id,
+          name:             row.business_name,
+          business_username: row.business_username,
+          logo_url:         row.business_logo_url,
+        },
+        // Pre-populated counts from post_metrics — no extra queries needed.
+        _view_count:    row.view_count,
+        _like_count:    row.like_count,
+        _comment_count: row.comment_count,
+        _save_count:    row.save_count,
+      }))
+
       setPosts((prev) => (pageIndex === 0 ? newPosts : [...prev, ...newPosts]))
       setHasMore(newPosts.length === PAGE_SIZE)
       setPage(pageIndex)
       await loadEngagementFor(newPosts)
 
-      // Log a view for each post shown, so businesses see real numbers
-      if (newPosts.length > 0) {
+      // Log views — the unique index on post_views now silently rejects
+      // same-user same-post same-day duplicates, so this is always safe to fire.
+      if (newPosts.length > 0 && currentUser?.id) {
         supabase.from('post_views').insert(
-          newPosts.map((p) => ({ post_id: p.id, business_id: p.business_id, viewer_id: currentUser?.id || null }))
+          newPosts.map((p) => ({
+            post_id:    p.id,
+            business_id: p.business_id,
+            viewer_id:  currentUser.id,
+            view_day:   new Date().toISOString().slice(0, 10),
+          }))
         ).then(() => {})
       }
     }
@@ -54,35 +82,43 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
     if (newPosts.length === 0) return
     const ids = newPosts.map((p) => p.id)
 
-    const [{ data: likes }, { data: saves }, { data: comments }] = await Promise.all([
-      supabase.from('post_likes').select('post_id, user_id').in('post_id', ids),
+    // Likes and saves still need a per-user "did I do this?" check.
+    // Counts come from the RPC, so we only fetch what we must.
+    const [{ data: likes }, { data: saves }] = await Promise.all([
+      currentUser
+        ? supabase.from('post_likes').select('post_id').in('post_id', ids).eq('user_id', currentUser.id)
+        : Promise.resolve({ data: [] }),
       currentUser
         ? supabase.from('post_saves').select('post_id').in('post_id', ids).eq('user_id', currentUser.id)
         : Promise.resolve({ data: [] }),
-      supabase.from('post_comments').select('post_id').in('post_id', ids),
     ])
+
+    const likedIds  = new Set((likes  || []).map((l) => l.post_id))
+    const savedIds  = new Set((saves  || []).map((s) => s.post_id))
 
     setLikeState((prev) => {
       const next = { ...prev }
-      ids.forEach((id) => {
-        const forPost = (likes || []).filter((l) => l.post_id === id)
-        next[id] = { liked: currentUser ? forPost.some((l) => l.user_id === currentUser.id) : false, count: forPost.length }
+      newPosts.forEach((p) => {
+        next[p.id] = { liked: likedIds.has(p.id), count: p._like_count ?? 0 }
       })
       return next
     })
 
     setSaveState((prev) => {
       const next = { ...prev }
-      const savedIds = new Set((saves || []).map((s) => s.post_id))
-      ids.forEach((id) => { next[id] = savedIds.has(id) })
+      newPosts.forEach((p) => { next[p.id] = savedIds.has(p.id) })
       return next
     })
 
     setCommentState((prev) => {
       const next = { ...prev }
-      ids.forEach((id) => {
-        const count = (comments || []).filter((c) => c.post_id === id).length
-        next[id] = { open: false, list: [], draft: '', ...(prev[id] || {}), count }
+      newPosts.forEach((p) => {
+        next[p.id] = {
+          open: false, list: [], draft: '',
+          // Count comes from post_metrics via the RPC — no extra query.
+          count: p._comment_count ?? 0,
+          ...(prev[p.id] || {}),
+        }
       })
       return next
     })
@@ -91,11 +127,12 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
   async function toggleLike(postId) {
     if (!currentUser) { alert('Please log in to like posts.'); return }
     const current = likeState[postId] || { liked: false, count: 0 }
-    // Ask the database to flip it — it's the only source of truth, so this
-    // can never get out of sync no matter what the UI last assumed.
     const { data: nowLiked, error } = await supabase.rpc('toggle_post_like', { p_post_id: postId })
     if (error) { alert('Could not update like: ' + error.message); return }
-    setLikeState((prev) => ({ ...prev, [postId]: { liked: nowLiked, count: Math.max(0, current.count + (nowLiked ? 1 : -1)) } }))
+    setLikeState((prev) => ({
+      ...prev,
+      [postId]: { liked: nowLiked, count: Math.max(0, current.count + (nowLiked ? 1 : -1)) },
+    }))
   }
 
   async function toggleSave(postId) {
@@ -113,7 +150,7 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
     }
     const { data, error } = await supabase
       .from('post_comments')
-      .select('*, profiles(username)')
+      .select('*, profiles(username, avatar_url)')
       .eq('post_id', postId)
       .order('created_at', { ascending: true })
     if (error) { alert('Could not load comments: ' + error.message); return }
@@ -142,7 +179,12 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
 
     setCommentState((prev) => ({
       ...prev,
-      [postId]: { ...prev[postId], list: [...(prev[postId]?.list || []), data], draft: '', count: (prev[postId]?.count || 0) + 1 },
+      [postId]: {
+        ...prev[postId],
+        list:  [...(prev[postId]?.list || []), data],
+        draft: '',
+        count: (prev[postId]?.count || 0) + 1,
+      },
     }))
   }
 
@@ -187,7 +229,8 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
   const visiblePosts = query.trim()
     ? posts.filter((p) => {
         const q = query.toLowerCase()
-        return p.caption?.toLowerCase().includes(q) || p.businesses?.name?.toLowerCase().includes(q)
+        return p.caption?.toLowerCase().includes(q) ||
+               p.businesses?.name?.toLowerCase().includes(q)
       })
     : posts
 
@@ -231,16 +274,16 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
             <FeedPost
               key={post.id}
               post={post}
-              like={likeState[post.id] || { liked: false, count: 0 }}
+              like={likeState[post.id]    || { liked: false, count: 0 }}
               saved={!!saveState[post.id]}
               comment={commentState[post.id] || { open: false, list: [], draft: '', count: 0 }}
               currentUser={currentUser}
-              onToggleLike={() => toggleLike(post.id)}
-              onToggleSave={() => toggleSave(post.id)}
-              onToggleComments={() => toggleComments(post.id)}
-              onDraftChange={(text) => updateDraft(post.id, text)}
-              onPostComment={() => postComment(post.id)}
-              onOpenBusiness={() => onSelectBusiness(post.businesses)}
+              onToggleLike={()         => toggleLike(post.id)}
+              onToggleSave={()         => toggleSave(post.id)}
+              onToggleComments={()     => toggleComments(post.id)}
+              onDraftChange={(text)    => updateDraft(post.id, text)}
+              onPostComment={()        => postComment(post.id)}
+              onOpenBusiness={()       => onSelectBusiness(post.businesses)}
             />
           ))}
 
@@ -259,14 +302,12 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
 
 function FeedPost({ post, like, saved, comment, currentUser, onToggleLike, onToggleSave, onToggleComments, onDraftChange, onPostComment, onOpenBusiness }) {
   const [expanded, setExpanded] = useState(false)
-  const caption = post.caption || ''
-  const isLong = caption.length > 90
+  const caption   = post.caption || ''
+  const isLong    = caption.length > 90
   const shownCaption = expanded || !isLong ? caption : caption.slice(0, 90) + '…'
 
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 16, marginBottom: 18, overflow: 'hidden', background: 'var(--surface)' }}>
-      {/* Photos are background-removed PNGs, so they need a backdrop —
-          without one they read as "raw" floating cutouts. */}
       <div style={{
         background: 'linear-gradient(150deg, #F2FAF7 0%, #E3F3EC 100%)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -293,6 +334,14 @@ function FeedPost({ post, like, saved, comment, currentUser, onToggleLike, onTog
         <button onClick={onOpenBusiness} style={{ background: 'none', border: 'none', padding: 0, fontWeight: 700, fontSize: 14, cursor: 'pointer', color: 'var(--text-strong)', textAlign: 'left' }}>
           {post.businesses?.business_username || post.businesses?.name}
         </button>
+
+        {/* Subtle exploration label — honest but not intrusive */}
+        {post.is_exploration && (
+          <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            new seller
+          </span>
+        )}
+
         {shownCaption && (
           <p style={{ fontSize: 13.5, marginTop: 2, textAlign: 'left' }}>
             {shownCaption}
