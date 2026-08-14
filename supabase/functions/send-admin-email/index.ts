@@ -73,10 +73,18 @@ serve(async (req: Request) => {
         }
 
         const arrayBuffer = await data.arrayBuffer()
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+        const uint8 = new Uint8Array(arrayBuffer)
+        // Safe base64 for large files in Deno — btoa(String.fromCharCode(...))
+        // crashes on large buffers due to call stack limits. Use chunk-based approach.
+        let binary = ''
+        const chunkSize = 8192
+        for (let i = 0; i < uint8.length; i += chunkSize) {
+          binary += String.fromCharCode(...uint8.subarray(i, i + chunkSize))
+        }
+        const base64 = btoa(binary)
         resolvedAttachments.push({ filename: att.filename, content: base64 })
       } else if (att.content) {
-        // Already base64 from direct upload
+        // Already base64 from direct upload — pass through as-is
         resolvedAttachments.push({ filename: att.filename, content: att.content })
       }
     }
@@ -203,10 +211,22 @@ async function sendEmail(apiKey: string, payload: {
     }
 
     if (payload.attachments && payload.attachments.length > 0) {
-      body.attachments = payload.attachments.map((a) => ({
-        filename: a.filename,
-        content: a.content, // base64
-      }))
+      body.attachments = payload.attachments.map((a) => {
+        const ext = a.filename.split('.').pop()?.toLowerCase() || ''
+        const contentTypeMap: Record<string, string> = {
+          pdf: 'application/pdf',
+          png: 'image/png',
+          jpg: 'image/jpeg',
+          jpeg: 'image/jpeg',
+          doc: 'application/msword',
+          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        }
+        return {
+          filename: a.filename,
+          content: a.content, // base64 string
+          content_type: contentTypeMap[ext] || 'application/octet-stream',
+        }
+      })
     }
 
     const res = await fetch(RESEND_URL, {
