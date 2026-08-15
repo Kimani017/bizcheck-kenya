@@ -1,0 +1,24 @@
+User-agent: *
+Allow: /
+
+# Block admin and private routes from crawlers
+Disallow: /#admin
+Disallow: /#settings
+Disallow: /#wallet
+Disallow: /#messages
+Disallow: /#myOrders
+Disallow: /#bizDashboard
+Disallow: /#notifications
+Disallow: /#pleads
+Disallow: /#adminProfiles
+
+# Allow public pages explicitly
+Allow: /
+Allow: /store
+Allow: /#home
+Allow: /#directory
+Allow: /#feed
+Allow: /#privacy
+Allow: /#terms
+
+Sitemap: https://www.bizcheckkenya.com/sitemap.xml
