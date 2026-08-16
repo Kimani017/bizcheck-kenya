@@ -4,6 +4,7 @@ import { BusinessCard } from './Home'
 import { SkeletonGrid } from './Skeleton'
 import B2BChat from './B2BChat'
 import { chargeBusinessCredits } from './CreditGate'
+import { cache, keys, tags, TTL } from '../cache'
 
 const CATEGORIES = ['All', 'Electronics', 'Fashion', 'Food', 'Phones', 'Home', 'Beauty', 'Other']
 
@@ -13,22 +14,29 @@ export default function Directory({ onSelectBusiness, goToSubmit, businessMode, 
   const [loading, setLoading] = useState(true)
   const [marketSubtab, setMarketSubtab] = useState(initialMarketSubtab || 'browse')
 
-  useEffect(() => { loadBusinesses() }, [activeCat])
+  useEffect(() => { loadBusinesses() }, [activeCat, currentUser?.id])
 
-  async function loadBusinesses() {
-    setLoading(true)
+  async function loadBusinesses(force = false) {
+    const key = keys.businesses(currentUser?.id, activeCat)
 
-    // Use the ranked businesses RPC — blends trust, engagement, ratings,
-    // recency, personalisation, and locality into a single ranked list.
-    const { data, error } = await supabase.rpc('get_ranked_businesses', {
-      p_user_id:  currentUser?.id ?? null,
-      p_category: activeCat === 'All' ? null : activeCat,
-      p_limit:    60,
-      p_offset:   0,
-    })
+    // Paint from cache first. Switching between category tabs you have already
+    // visited becomes instant instead of a spinner each time.
+    const cached = cache.peek(key)
+    if (cached && !force) { setBusinesses(cached); setLoading(false) }
+    else setLoading(true)
 
-    if (error) console.error('get_ranked_businesses error:', error)
-    setBusinesses(data || [])
+    const data = await cache.get(
+      key,
+      () => supabase.rpc('get_ranked_businesses', {
+        p_user_id:  currentUser?.id ?? null,
+        p_category: activeCat === 'All' ? null : activeCat,
+        p_limit:    60,
+        p_offset:   0,
+      }).then(r => r.data || []),
+      { ttl: TTL.BUSINESSES, tags: [tags.BUSINESSES], force }
+    )
+
+    setBusinesses(data)
     setLoading(false)
   }
 
@@ -66,13 +74,22 @@ export default function Directory({ onSelectBusiness, goToSubmit, businessMode, 
 
       {marketSubtab === 'browse' && (
         <>
-          <div className="filter-row">
-            {CATEGORIES.map((c) => (
-              <button key={c} className={`filter-btn ${activeCat === c ? 'on' : ''}`} onClick={() => setActiveCat(c)}>
-                {c}
-              </button>
-            ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <div className="filter-row">
+              {CATEGORIES.map((c) => (
+                <button key={c} className={`filter-btn ${activeCat === c ? 'on' : ''}`} onClick={() => setActiveCat(c)}>
+                  {c}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => loadBusinesses(true)}
+              style={{ background: 'none', border: 'none', fontSize: 12, color: '#1D9E75', cursor: 'pointer', fontWeight: 600 }}
+            >
+              Refresh
+            </button>
           </div>
+
           {loading ? (
             <SkeletonGrid count={6} />
           ) : businesses.length === 0 ? (
@@ -105,6 +122,14 @@ function DoBizSearch({ myBusiness, onSelectBusiness, onInsufficientCredits }) {
   }
 
   async function search(q) {
+    const cacheKey = `b2bsearch:${myBusiness.id}:${q.trim().toLowerCase()}`
+
+    // Cached results are free — the business is NOT charged credits for a
+    // search it already paid for in this session. Charging twice for the same
+    // query would be a real billing bug.
+    const cached = cache.peek(cacheKey)
+    if (cached) { setResults(cached); return }
+
     setSearching(true)
 
     const charge = await chargeBusinessCredits(myBusiness.id, 'search_business', 0.5)
@@ -115,15 +140,20 @@ function DoBizSearch({ myBusiness, onSelectBusiness, onInsufficientCredits }) {
       return
     }
 
-    const { data } = await supabase
-      .from('businesses')
-      .select('*')
-      .eq('status', 'verified')
-      .neq('id', myBusiness.id)
-      .ilike('name', `%${q.trim()}%`)
-      .order('trust_score', { ascending: false })
-      .limit(10)
-    setResults(data || [])
+    const data = await cache.get(
+      cacheKey,
+      () => supabase
+        .from('businesses').select('*')
+        .eq('status', 'verified')
+        .neq('id', myBusiness.id)
+        .ilike('name', `%${q.trim()}%`)
+        .order('trust_score', { ascending: false })
+        .limit(10)
+        .then(r => r.data || []),
+      { ttl: TTL.BUSINESSES, tags: [tags.BUSINESSES] }
+    )
+
+    setResults(data)
     setSearching(false)
   }
 
@@ -156,7 +186,7 @@ function DoBizSearch({ myBusiness, onSelectBusiness, onInsufficientCredits }) {
               <div style={{ fontWeight: 600, fontSize: 15 }}>🏢 {b.name}</div>
               <div className="muted" style={{ fontSize: 12 }}>{b.category}{b.location ? ` · ${b.location}` : ''}</div>
             </div>
-            <span style={{ color: '#1D9E75', fontSize: 13, fontWeight: 600 }}>View & Message →</span>
+            <span style={{ color: '#1D9E75', fontSize: 13, fontWeight: 600 }}>View &amp; Message →</span>
           </div>
         ))}
       </div>

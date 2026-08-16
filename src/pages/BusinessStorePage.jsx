@@ -6,17 +6,13 @@ import Icon from './Icon'
 import BuyProductModal from './BuyProductModal'
 import { chargeUserCredits } from './CreditGate'
 import { AuthorRow } from './Avatar'
+import { cache, keys, tags, TTL } from '../cache'
 
-// The one destination for viewing any business, from anywhere in the app.
-// Pass the same props you'd give BusinessPublicProfile directly — this
-// wraps it (header hidden) as the "Info/Reviews" subtab, and adds a new
-// "Display" subtab showing the business's posted product photos, with the
-// same Like/Save/Comment engagement as the Feed.
 export default function BusinessStorePage({
   business, onBack, currentUser, isAdmin, businessMode,
   onReport, onMessageBusiness, onMessageUser, onInsufficientCredits,
 }) {
-  const [activeTab, setActiveTab] = useState('display') // 'display' | 'info'
+  const [activeTab, setActiveTab] = useState('display')
   const [posts, setPosts] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(true)
   const [selectedPost, setSelectedPost] = useState(null)
@@ -28,19 +24,29 @@ export default function BusinessStorePage({
   const [saveState, setSaveState] = useState({})
   const [commentState, setCommentState] = useState({})
 
-  useEffect(() => { loadPosts() }, [business?.id])
+  useEffect(() => { loadPosts() }, [business?.id, currentUser?.id])
 
   async function loadPosts() {
     if (!business?.id) return
-    setLoadingPosts(true)
-    const { data } = await supabase
-      .from('market_posts')
-      .select('*, products(id, name, description, price, quantity, sizes, colors)')
-      .eq('business_id', business.id)
-      .eq('status', 'approved')
-      .order('created_at', { ascending: false })
 
-    const list = data || []
+    // Paint from cache immediately — reopening a store you visited a minute
+    // ago should not flash a loader.
+    const cached = cache.peek(keys.businessPosts(business.id))
+    if (cached) { setPosts(cached); setLoadingPosts(false) }
+    else setLoadingPosts(true)
+
+    const list = await cache.get(
+      keys.businessPosts(business.id),
+      () => supabase
+        .from('market_posts')
+        .select('*, products(id, name, description, price, quantity, sizes, colors)')
+        .eq('business_id', business.id)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false })
+        .then(r => r.data || []),
+      { ttl: TTL.BUSINESSES, tags: [tags.PRODUCTS] }
+    )
+
     setPosts(list)
     await loadEngagementFor(list)
     setLoadingPosts(false)
@@ -50,24 +56,49 @@ export default function BusinessStorePage({
     if (list.length === 0) return
     const ids = list.map((p) => p.id)
 
-    const [{ data: likes }, { data: saves }, { data: comments }] = await Promise.all([
-      supabase.from('post_likes').select('post_id, user_id').in('post_id', ids),
-      currentUser
-        ? supabase.from('post_saves').select('post_id').in('post_id', ids).eq('user_id', currentUser.id)
-        : Promise.resolve({ data: [] }),
-      supabase.from('post_comments').select('post_id').in('post_id', ids),
-    ])
+    // Counts are shared across all viewers, so cache them by business.
+    // "Did I like this" is per-user and cached separately.
+    const counts = await cache.get(
+      `storeCounts:${business.id}`,
+      async () => {
+        const [{ data: likes }, { data: comments }] = await Promise.all([
+          supabase.from('post_likes').select('post_id').in('post_id', ids),
+          supabase.from('post_comments').select('post_id').in('post_id', ids),
+        ])
+        const map = {}
+        ids.forEach((id) => {
+          map[id] = {
+            likes:    (likes    || []).filter((l) => l.post_id === id).length,
+            comments: (comments || []).filter((c) => c.post_id === id).length,
+          }
+        })
+        return map
+      },
+      { ttl: TTL.REALTIME, tags: [tags.ENGAGEMENT] }
+    )
 
-    const nextLikes = {}
-    const nextSaves = {}
-    const nextComments = {}
-    const savedIds = new Set((saves || []).map((s) => s.post_id))
+    let mine = { liked: new Set(), saved: new Set() }
+    if (currentUser) {
+      const [myLikes, mySaves] = await cache.get(
+        `storeMine:${business.id}:${currentUser.id}`,
+        async () => {
+          const [{ data: l }, { data: s }] = await Promise.all([
+            supabase.from('post_likes').select('post_id').in('post_id', ids).eq('user_id', currentUser.id),
+            supabase.from('post_saves').select('post_id').in('post_id', ids).eq('user_id', currentUser.id),
+          ])
+          return [l || [], s || []]
+        },
+        { ttl: TTL.REALTIME, tags: [tags.ENGAGEMENT] }
+      )
+      mine.liked = new Set(myLikes.map((l) => l.post_id))
+      mine.saved = new Set(mySaves.map((s) => s.post_id))
+    }
 
+    const nextLikes = {}, nextSaves = {}, nextComments = {}
     ids.forEach((id) => {
-      const forPost = (likes || []).filter((l) => l.post_id === id)
-      nextLikes[id] = { liked: currentUser ? forPost.some((l) => l.user_id === currentUser.id) : false, count: forPost.length }
-      nextSaves[id] = savedIds.has(id)
-      nextComments[id] = { open: false, list: [], draft: '', count: (comments || []).filter((c) => c.post_id === id).length }
+      nextLikes[id]    = { liked: mine.liked.has(id), count: counts[id]?.likes ?? 0 }
+      nextSaves[id]    = mine.saved.has(id)
+      nextComments[id] = { open: false, list: [], draft: '', count: counts[id]?.comments ?? 0 }
     })
 
     setLikeState(nextLikes)
@@ -78,16 +109,32 @@ export default function BusinessStorePage({
   async function toggleLike(postId) {
     if (!currentUser) { alert('Please log in to like posts.'); return }
     const current = likeState[postId] || { liked: false, count: 0 }
+
+    setLikeState((prev) => ({
+      ...prev,
+      [postId]: { liked: !current.liked, count: Math.max(0, current.count + (current.liked ? -1 : 1)) },
+    }))
+
     const { data: nowLiked, error } = await supabase.rpc('toggle_post_like', { p_post_id: postId })
-    if (error) return
-    setLikeState((prev) => ({ ...prev, [postId]: { liked: nowLiked, count: Math.max(0, current.count + (nowLiked ? 1 : -1)) } }))
+    if (error) { setLikeState((prev) => ({ ...prev, [postId]: current })); return }
+
+    setLikeState((prev) => ({
+      ...prev,
+      [postId]: { liked: nowLiked, count: Math.max(0, current.count + (nowLiked ? 1 : -1)) },
+    }))
+    cache.invalidateTag(tags.ENGAGEMENT)
   }
 
   async function toggleSave(postId) {
     if (!currentUser) { alert('Please log in to save posts.'); return }
+    const wasSaved = !!saveState[postId]
+    setSaveState((prev) => ({ ...prev, [postId]: !wasSaved }))
+
     const { data: nowSaved, error } = await supabase.rpc('toggle_post_save', { p_post_id: postId })
-    if (error) return
+    if (error) { setSaveState((prev) => ({ ...prev, [postId]: wasSaved })); return }
+
     setSaveState((prev) => ({ ...prev, [postId]: nowSaved }))
+    cache.invalidateTag(tags.ENGAGEMENT)
   }
 
   async function toggleComments(postId) {
@@ -96,13 +143,19 @@ export default function BusinessStorePage({
       setCommentState((prev) => ({ ...prev, [postId]: { ...entry, open: false } }))
       return
     }
-    const { data, error } = await supabase
-      .from('post_comments')
-      .select('*, profiles(username, avatar_url)')
-      .eq('post_id', postId)
-      .order('created_at', { ascending: true })
-    if (error) return
-    setCommentState((prev) => ({ ...prev, [postId]: { ...entry, open: true, list: data || [] } }))
+
+    const list = await cache.get(
+      `postComments:${postId}`,
+      () => supabase
+        .from('post_comments')
+        .select('*, profiles(username, avatar_url)')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true })
+        .then(r => r.data || []),
+      { ttl: TTL.REALTIME }
+    )
+
+    setCommentState((prev) => ({ ...prev, [postId]: { ...entry, open: true, list } }))
   }
 
   function updateDraft(postId, text) {
@@ -124,8 +177,11 @@ export default function BusinessStorePage({
 
     setCommentState((prev) => ({
       ...prev,
-      [postId]: { ...prev[postId], list: [...prev[postId].list, data], draft: '', count: prev[postId].count + 1 },
+      [postId]: { ...prev[postId], list: [...(prev[postId]?.list || []), data], draft: '', count: (prev[postId]?.count || 0) + 1 },
     }))
+
+    cache.invalidate(`postComments:${postId}`)
+    cache.invalidateTag(tags.ENGAGEMENT)
   }
 
   async function messageBusiness() {
@@ -147,6 +203,8 @@ export default function BusinessStorePage({
   if (!business) return null
 
   const canMessage = business.owner_id && business.owner_id !== currentUser?.id && (onMessageBusiness || onMessageUser)
+  // businesses has no photo_url column — logo_url is the real one.
+  const headerImage = business.logo_url || business.photo_url || null
 
   return (
     <div className="section" style={{ maxWidth: 680 }}>
@@ -163,10 +221,9 @@ export default function BusinessStorePage({
         )}
       </div>
 
-      {/* Shared header — shown once, above both subtabs */}
       <div style={{ textAlign: 'center', marginBottom: 16, marginTop: 8 }}>
-        {(business.logo_url || business.photo_url) ? (
-          <img src={business.logo_url || business.photo_url} alt={business.name} style={{ width: 76, height: 76, borderRadius: '50%', objectFit: 'cover', marginBottom: 10, border: '2px solid var(--border)' }} />
+        {headerImage ? (
+          <img src={headerImage} alt={business.name} loading="lazy" style={{ width: 76, height: 76, borderRadius: '50%', objectFit: 'cover', marginBottom: 10, border: '2px solid var(--border)' }} />
         ) : (
           <div style={{ width: 76, height: 76, borderRadius: '50%', background: 'var(--hover-bg)', margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30 }}>🏢</div>
         )}
@@ -176,22 +233,11 @@ export default function BusinessStorePage({
         )}
       </div>
 
-      {/* Subtab toggle */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
-        <button
-          onClick={() => setActiveTab('display')}
-          className={`subtab-btn ${activeTab === 'display' ? 'on' : ''}`}
-          aria-label="Display"
-          style={{ padding: '8px 22px', display: 'flex', alignItems: 'center' }}
-        >
+        <button onClick={() => setActiveTab('display')} className={`subtab-btn ${activeTab === 'display' ? 'on' : ''}`} aria-label="Display" style={{ padding: '8px 22px', display: 'flex', alignItems: 'center' }}>
           <Icon.Grid size={18} />
         </button>
-        <button
-          onClick={() => setActiveTab('info')}
-          className={`subtab-btn ${activeTab === 'info' ? 'on' : ''}`}
-          aria-label="Business info and reviews"
-          style={{ padding: '8px 22px', display: 'flex', alignItems: 'center' }}
-        >
+        <button onClick={() => setActiveTab('info')} className={`subtab-btn ${activeTab === 'info' ? 'on' : ''}`} aria-label="Business info and reviews" style={{ padding: '8px 22px', display: 'flex', alignItems: 'center' }}>
           <Icon.Info size={18} />
         </button>
       </div>
@@ -204,14 +250,14 @@ export default function BusinessStorePage({
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
             {posts.map((post) => {
-              const like = likeState[post.id] || { liked: false, count: 0 }
+              const like    = likeState[post.id]    || { liked: false, count: 0 }
               const comment = commentState[post.id] || { count: 0 }
-              const saved = !!saveState[post.id]
+              const saved   = !!saveState[post.id]
               return (
                 <div key={post.id} style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', background: 'var(--surface)' }}>
                   <div onClick={() => setSelectedPost(post)} style={{ aspectRatio: '1 / 1', background: 'var(--hover-bg)', cursor: 'pointer' }}>
                     {post.market_photo_url && (
-                      <img src={post.market_photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={post.market_photo_url} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '7px 10px' }}>
@@ -245,7 +291,6 @@ export default function BusinessStorePage({
         />
       )}
 
-      {/* Product detail popup, opened from the Display grid */}
       {selectedPost && (
         <div
           onClick={() => setSelectedPost(null)}
@@ -319,16 +364,19 @@ export default function BusinessStorePage({
         </div>
       )}
 
+      {/* No onOpenWallet — BuyProductModal now opens a floating deposit form
+          instead of navigating away, which was the redirect bug. */}
       {buyProduct && (
         <BuyProductModal
           product={buyProduct}
           currentUser={currentUser}
           onClose={() => setBuyProduct(null)}
-          onOpenWallet={() => window.location.hash = '#wallet'}
           onOrdered={() => {
             setBuyProduct(null)
             setSelectedPost(null)
             setOrderPlaced(true)
+            // Stock changed — drop the cached product list for this store.
+            cache.invalidate(keys.businessPosts(business.id))
             setTimeout(() => setOrderPlaced(false), 6000)
           }}
         />

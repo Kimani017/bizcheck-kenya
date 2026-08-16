@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { SkeletonCard } from './Skeleton'
+import { cache, keys, tags, TTL } from '../cache'
 
 const SAFETY_TIPS = [
   '💡 Always verify a till number on BizCheck before sending money.',
@@ -10,7 +11,6 @@ const SAFETY_TIPS = [
   '💡 Check reviews from other buyers before making large purchases.',
 ]
 
-// Animated count-up for the live stats
 function CountUp({ target }) {
   const [value, setValue] = useState(0)
   useEffect(() => {
@@ -29,11 +29,8 @@ function CountUp({ target }) {
   return <>{value.toLocaleString()}</>
 }
 
-// Seamless auto-scrolling row of business cards.
-// direction 'ltr' = moves left→right, 'rtl' = right→left. Pauses on hover.
 function Marquee({ businesses, direction, onSelectBusiness }) {
   if (businesses.length === 0) return null
-  // Fewer than 3 cards makes a marquee look broken — show a static grid instead
   if (businesses.length < 3) {
     return (
       <div className="biz-grid">
@@ -43,7 +40,7 @@ function Marquee({ businesses, direction, onSelectBusiness }) {
       </div>
     )
   }
-  const loop = [...businesses, ...businesses] // duplicated for the seamless loop
+  const loop = [...businesses, ...businesses]
   return (
     <div className="marquee">
       <div className={`marquee-track ${direction === 'ltr' ? 'marquee-ltr' : 'marquee-rtl'}`}>
@@ -57,7 +54,7 @@ function Marquee({ businesses, direction, onSelectBusiness }) {
   )
 }
 
-export default function Home({ onSelectBusiness, goToReport }) {
+export default function Home({ onSelectBusiness, goToReport, currentUser }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState(null)
   const [recent, setRecent] = useState([])
@@ -73,36 +70,65 @@ export default function Home({ onSelectBusiness, goToReport }) {
     loadStats()
     const tipTimer = setInterval(() => setTipIndex((i) => (i + 1) % SAFETY_TIPS.length), 6000)
     return () => clearInterval(tipTimer)
-  }, [])
+  }, [currentUser?.id])
 
   async function loadLists() {
-    setListsLoading(true)
-    const { data: verifiedData } = await supabase
-      .from('businesses')
-      .select('*')
-      .eq('status', 'verified')
-      .order('created_at', { ascending: false })
-      .limit(12)
+    // Paint instantly from cache if we have it — no spinner on revisit.
+    const cached = cache.peek(keys.businesses(currentUser?.id, 'All'))
+    if (cached) { setRecent(cached); setListsLoading(false) }
 
-    const { data: flaggedData } = await supabase
-      .from('businesses')
-      .select('*')
-      .in('status', ['flagged', 'scam'])
-      .order('updated_at', { ascending: false })
-      .limit(12)
+    const [ranked, flaggedData] = await Promise.all([
+      cache.get(
+        keys.businesses(currentUser?.id, 'All'),
+        () => supabase.rpc('get_ranked_businesses', {
+          p_user_id:  currentUser?.id ?? null,
+          p_category: null,
+          p_limit:    12,
+          p_offset:   0,
+        }).then(r => r.data || []),
+        { ttl: TTL.BUSINESSES, tags: [tags.BUSINESSES] }
+      ),
+      cache.get(
+        'businesses:flagged',
+        () => supabase.from('businesses').select('*')
+          .in('status', ['flagged', 'scam'])
+          .order('updated_at', { ascending: false })
+          .limit(12)
+          .then(r => r.data || []),
+        { ttl: TTL.BUSINESSES, tags: [tags.BUSINESSES] }
+      ),
+    ])
 
-    setRecent(verifiedData || [])
-    setFlagged(flaggedData || [])
+    setRecent(ranked)
+    setFlagged(flaggedData)
     setListsLoading(false)
   }
 
   async function loadStats() {
-    const [v, f, r] = await Promise.all([
-      supabase.from('businesses').select('id', { count: 'exact', head: true }).eq('status', 'verified'),
-      supabase.from('businesses').select('id', { count: 'exact', head: true }).in('status', ['flagged', 'scam', 'banned']),
-      supabase.from('reports').select('id', { count: 'exact', head: true }),
-    ])
-    setStats({ verified: v.count || 0, flagged: f.count || 0, reports: r.count || 0 })
+    // Was three COUNT(*) queries on every page load. Now one indexed read from
+    // the cached_home_stats table, refreshed by cron every 10 minutes.
+    const s = await cache.get(
+      keys.homeStats(),
+      async () => {
+        const { data, error } = await supabase.rpc('get_home_stats')
+        if (!error && data?.[0]) {
+          return {
+            verified: data[0].verified_count || 0,
+            flagged:  data[0].flagged_count  || 0,
+            reports:  data[0].report_count   || 0,
+          }
+        }
+        // Fallback for the window before the cache table is first populated.
+        const [v, f, r] = await Promise.all([
+          supabase.from('businesses').select('id', { count: 'exact', head: true }).eq('status', 'verified'),
+          supabase.from('businesses').select('id', { count: 'exact', head: true }).in('status', ['flagged', 'scam', 'banned']),
+          supabase.from('reports').select('id', { count: 'exact', head: true }),
+        ])
+        return { verified: v.count || 0, flagged: f.count || 0, reports: r.count || 0 }
+      },
+      { ttl: TTL.STATIC }
+    )
+    setStats(s)
   }
 
   async function handleSearch(overrideQuery) {
@@ -110,40 +136,40 @@ export default function Home({ onSelectBusiness, goToReport }) {
     if (!q) return
     setLoading(true)
 
-    // Try RPC first
-    const { data: rpcData, error: rpcError } = await supabase.rpc('search_businesses', { query: q })
+    // Search results are cached per query string — retyping the same search,
+    // or going back to it, costs nothing.
+    const merged = await cache.get(
+      `search:${q.toLowerCase()}`,
+      async () => {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('search_businesses', { query: q })
 
-    if (!rpcError && rpcData && rpcData.length > 0) {
-      // Also surface banned matches (the RPC may exclude them)
-      const { data: bannedData } = await supabase
-        .from('businesses')
-        .select('*')
-        .eq('status', 'banned')
-        .ilike('name', `%${q}%`)
-      const seen = new Set(rpcData.map((b) => b.id))
-      const merged = [...rpcData, ...(bannedData || []).filter((b) => !seen.has(b.id))]
-      setResults(merged)
-      setLoading(false)
-      return
-    }
+        if (!rpcError && rpcData && rpcData.length > 0) {
+          const { data: bannedData } = await supabase
+            .from('businesses').select('*')
+            .eq('status', 'banned')
+            .ilike('name', `%${q}%`)
+          const seen = new Set(rpcData.map((b) => b.id))
+          return [...rpcData, ...(bannedData || []).filter((b) => !seen.has(b.id))]
+        }
 
-    // Fallback: direct ilike query
-    const { data: fallbackData } = await supabase
-      .from('businesses')
-      .select('*')
-      .in('status', ['verified', 'flagged', 'scam', 'banned'])
-      .or(`name.ilike.%${q}%,phone.ilike.%${q}%,mpesa_till.ilike.%${q}%,fb_handle.ilike.%${q}%,tiktok_handle.ilike.%${q}%`)
-      .order('trust_score', { ascending: false })
+        const { data: fallbackData } = await supabase
+          .from('businesses').select('*')
+          .in('status', ['verified', 'flagged', 'scam', 'banned'])
+          .or(`name.ilike.%${q}%,phone.ilike.%${q}%,mpesa_till.ilike.%${q}%,fb_handle.ilike.%${q}%,tiktok_handle.ilike.%${q}%`)
+          .order('trust_score', { ascending: false })
+        return fallbackData || []
+      },
+      { ttl: TTL.BUSINESSES, tags: [tags.BUSINESSES] }
+    )
 
     setLoading(false)
-    setResults(fallbackData || [])
+    setResults(merged)
   }
 
   return (
     <div>
       {/* HERO */}
       <div className="hero" style={{ position: 'relative', overflow: 'hidden' }}>
-        {/* Themed SVG shield decoration — always loads, adapts to theme */}
         <svg viewBox="0 0 200 200" aria-hidden="true" style={{ position: 'absolute', right: -30, top: -30, width: 220, height: 220, opacity: 0.07, pointerEvents: 'none' }}>
           <path d="M100 10 L170 40 V100 C170 150 140 180 100 195 C60 180 30 150 30 100 V40 Z" fill="#1D9E75" />
           <path d="M70 100 L92 122 L135 75" stroke="#fff" strokeWidth="14" fill="none" strokeLinecap="round" strokeLinejoin="round" />
@@ -171,10 +197,9 @@ export default function Home({ onSelectBusiness, goToReport }) {
             }}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           />
-          <button onClick={handleSearch}>{loading ? 'Searching…' : 'Check'}</button>
+          <button onClick={() => handleSearch()}>{loading ? 'Searching…' : 'Check'}</button>
         </div>
 
-        {/* LIVE stats — real counts from the database */}
         <div className="hero-stats">
           <div className="hero-stat"><span className="hero-stat-num"><CountUp target={stats.verified} /></span><span className="hero-stat-label">Verified businesses</span></div>
           <div className="hero-stat"><span className="hero-stat-num"><CountUp target={stats.flagged} /></span><span className="hero-stat-label">Scammers flagged</span></div>
@@ -182,12 +207,10 @@ export default function Home({ onSelectBusiness, goToReport }) {
         </div>
       </div>
 
-      {/* ROTATING SAFETY TIP */}
       <div className="safety-tip-banner" key={tipIndex}>
         {SAFETY_TIPS[tipIndex]}
       </div>
 
-      {/* SEARCH RESULTS */}
       {results !== null && (
         <div className="section">
           <h2>Search results ({results.length})</h2>
@@ -206,9 +229,8 @@ export default function Home({ onSelectBusiness, goToReport }) {
         </div>
       )}
 
-      {/* RECENTLY VERIFIED — escalator moving left → right */}
       <div className="section">
-        <h2>✅ Recently verified</h2>
+        <h2>✅ Top businesses</h2>
         {listsLoading ? (
           <div className="biz-grid">{Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}</div>
         ) : recent.length === 0 ? (
@@ -218,7 +240,6 @@ export default function Home({ onSelectBusiness, goToReport }) {
         )}
       </div>
 
-      {/* RECENTLY FLAGGED — escalator moving right → left */}
       <div className="section">
         <h2>⚠ Recently reported</h2>
         {listsLoading ? (
@@ -230,7 +251,6 @@ export default function Home({ onSelectBusiness, goToReport }) {
         )}
       </div>
 
-      {/* HOW BIZCHECK WORKS */}
       <div className="section">
         <h2>How BizCheck works</h2>
         <div className="how-grid">
@@ -255,15 +275,26 @@ export default function Home({ onSelectBusiness, goToReport }) {
   )
 }
 
+// Shared by Home, Directory, and search results.
+// Uses logo_url — businesses has no photo_url column, which is why every card
+// used to render the 🏢 fallback.
 export function BusinessCard({ business, onClick }) {
-  const trustColor = business.trust_score > 70 ? '#1D9E75' : business.trust_score > 40 ? '#EF9F27' : '#E24B4A'
-  const initial = (business.name || 'B')[0].toUpperCase()
+  const trustColor = business.trust_score > 70 ? '#1D9E75'
+    : business.trust_score > 40 ? '#EF9F27' : '#E24B4A'
+  const initial   = (business.name || 'B')[0].toUpperCase()
+  const avatarUrl = business.logo_url || business.photo_url || null
+
   return (
     <div className={`biz-card ${business.status === 'flagged' ? 'flagged' : ''}`} onClick={onClick}>
       <div className="biz-top">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          {business.photo_url ? (
-            <img src={business.photo_url} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1.5px solid var(--border)' }} />
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt=""
+              loading="lazy"
+              style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1.5px solid var(--border)' }}
+            />
           ) : (
             <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--hover-bg)', border: '1.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, color: 'var(--text-muted)', flexShrink: 0 }}>
               {initial}
@@ -272,7 +303,8 @@ export function BusinessCard({ business, onClick }) {
           <div className="biz-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{business.name}</div>
         </div>
         <span className={`badge ${business.status === 'verified' ? 'badge-verified' : 'badge-danger'}`}>
-          {business.status === 'verified' ? 'Verified' : business.status === 'banned' ? '🚫 Banned' : 'Flagged'}
+          {business.status === 'verified' ? 'Verified'
+            : business.status === 'banned' ? '🚫 Banned' : 'Flagged'}
         </span>
       </div>
       <div className="biz-cat">{business.category}</div>
@@ -282,7 +314,7 @@ export function BusinessCard({ business, onClick }) {
           <span style={{ color: trustColor, fontWeight: 500 }}>{business.trust_score}%</span>
         </div>
         <div className="trust-bar">
-          <div className="trust-fill" style={{ width: `${business.trust_score}%`, background: trustColor }}></div>
+          <div className="trust-fill" style={{ width: `${business.trust_score}%`, background: trustColor }} />
         </div>
       </div>
       <div className="biz-meta">{business.phone}</div>
