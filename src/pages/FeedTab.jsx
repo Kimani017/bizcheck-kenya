@@ -4,6 +4,8 @@ import RubiksLoader from './RubiksLoader'
 import Icon from './Icon'
 import { AuthorRow } from './Avatar'
 import { cache, keys, tags, TTL } from '../cache'
+import { rpc, tryQuery } from '../supabaseHelpers'
+import { handleError } from '../errors'
 
 const PAGE_SIZE = 8
 
@@ -18,12 +20,15 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
   const [scanning, setScanning] = useState(false)
   const [scanNote, setScanNote] = useState(null)
   const [query, setQuery] = useState('')
+  const [loadError, setLoadError] = useState(null)
   const fileInputRef = useRef(null)
 
   useEffect(() => { loadPage(0) }, [currentUser?.id])
 
   async function loadPage(pageIndex, force = false) {
     setLoading(true)
+    setLoadError(null)
+    try {
 
     // Cached per user + page. A 2-minute TTL also gives the feed STABILITY:
     // get_ranked_feed draws a fresh Thompson sample every call, so without a
@@ -31,11 +36,14 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
     // reshuffled feed and loses their place.
     const rows = await cache.get(
       keys.feed(currentUser?.id, pageIndex),
-      () => supabase.rpc('get_ranked_feed', {
+      // rpc() THROWS on error. Critical: if this returned [] on failure,
+      // cache.get would store the empty array for the full TTL and the feed
+      // would stay empty even after the database was fixed.
+      () => rpc('get_ranked_feed', {
         p_user_id: currentUser?.id ?? null,
         p_limit:   PAGE_SIZE,
         p_offset:  pageIndex * PAGE_SIZE,
-      }).then(r => r.data || []),
+      }),
       { ttl: TTL.FEED, tags: [tags.FEED], force }
     )
 
@@ -68,20 +76,28 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
       const ids = newPosts.map((p) => p.id)
 
       // Views — the unique index drops same-day repeats server-side.
-      supabase.from('post_views').insert(
-        newPosts.map((p) => ({
-          post_id:     p.id,
-          business_id: p.business_id,
-          viewer_id:   currentUser.id,
-          view_day:    new Date().toISOString().slice(0, 10),
-        }))
-      ).then(() => {})
+      tryQuery(
+        supabase.from('post_views').insert(
+          newPosts.map((p) => ({
+            post_id:     p.id,
+            business_id: p.business_id,
+            viewer_id:   currentUser.id,
+            view_day:    new Date().toISOString().slice(0, 10),
+          }))
+        ),
+        'feed:logViews'
+      )
 
       // Impressions — feeds the fatigue logic in the ranking algorithm.
-      supabase.rpc('record_impressions', { p_post_ids: ids }).then(() => {})
+      tryQuery(supabase.rpc('record_impressions', { p_post_ids: ids }), 'feed:impressions')
     }
 
-    setLoading(false)
+    } catch (err) {
+      // Show the user something honest instead of a false "No posts yet".
+      setLoadError(handleError(err, 'feed:loadPage'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function loadEngagementFor(newPosts) {
@@ -97,11 +113,11 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
     const [likes, saves] = await cache.get(
       keys.postEngagement(currentUser.id, ids),
       async () => {
-        const [{ data: l }, { data: s }] = await Promise.all([
-          supabase.from('post_likes').select('post_id').in('post_id', ids).eq('user_id', currentUser.id),
-          supabase.from('post_saves').select('post_id').in('post_id', ids).eq('user_id', currentUser.id),
+        const [l, sv] = await Promise.all([
+          query(supabase.from('post_likes').select('post_id').in('post_id', ids).eq('user_id', currentUser.id), 'feed:myLikes'),
+          query(supabase.from('post_saves').select('post_id').in('post_id', ids).eq('user_id', currentUser.id), 'feed:mySaves'),
         ])
-        return [l || [], s || []]
+        return [l, sv]
       },
       { ttl: TTL.REALTIME, tags: [tags.ENGAGEMENT] }
     )
@@ -196,12 +212,13 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
 
     const list = await cache.get(
       `postComments:${postId}`,
-      () => supabase
-        .from('post_comments')
-        .select('*, profiles(username, avatar_url)')
-        .eq('post_id', postId)
-        .order('created_at', { ascending: true })
-        .then(r => r.data || []),
+      () => query(
+        supabase.from('post_comments')
+          .select('*, profiles(username, avatar_url)')
+          .eq('post_id', postId)
+          .order('created_at', { ascending: true }),
+        'feed:comments'
+      ),
       { ttl: TTL.REALTIME }
     )
 
@@ -329,10 +346,24 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
         </div>
       )}
 
+      {loadError && (
+        <div style={{ marginBottom: 14, fontSize: 13, padding: '12px 14px', borderRadius: 10, background: '#FCEBEB', color: '#A32D2D' }}>
+          {loadError}{' '}
+          <button
+            onClick={() => loadPage(0, true)}
+            style={{ background: 'none', border: 'none', padding: 0, color: '#A32D2D', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontSize: 13 }}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
       {loading && posts.length === 0 ? (
         <RubiksLoader label="Loading the feed…" />
       ) : visiblePosts.length === 0 ? (
-        <p className="muted" style={{ marginTop: 24 }}>{query ? 'Nothing matches that search.' : 'No posts yet.'}</p>
+        <p className="muted" style={{ marginTop: 24 }}>
+          {loadError ? 'Could not load the feed.' : query ? 'Nothing matches that search.' : 'No posts yet.'}
+        </p>
       ) : (
         <>
           {visiblePosts.map((post) => (
