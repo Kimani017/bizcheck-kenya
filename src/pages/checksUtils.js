@@ -1,90 +1,73 @@
-// Shared formatting + status helpers for the Checks wallet and escrow.
-// 1 Check = 100 KSh.
+// src/pages/checksUtils.js
+// ─────────────────────────────────────────────────────────────────────────────
+// Single source of truth for the Checks ↔ KSh conversion rate.
+//
+// 1 Check = KSh 100
+//
+// ALL money display in the app must go through these helpers. Never write
+// the rate as a raw number anywhere else — one constant here means one place
+// to update if the rate ever changes again.
+// ─────────────────────────────────────────────────────────────────────────────
 
-export const KSH_PER_CHECK = 100
+export const KSH_PER_CHECK = 100   // 1 Check = KSh 100
 
 export function checksToKsh(checks) {
-  return Number(checks || 0) * KSH_PER_CHECK
+  return Number(checks ?? 0) * KSH_PER_CHECK
 }
 
 export function kshToChecks(ksh) {
-  return Number(ksh || 0) / KSH_PER_CHECK
+  return Number(ksh ?? 0) / KSH_PER_CHECK
 }
 
-// "C 12.00" — always two decimals so amounts line up in lists
 export function formatChecks(checks) {
-  return `C ${Number(checks || 0).toFixed(2)}`
+  const n = Number(checks ?? 0)
+  // Show whole numbers cleanly, decimals only when needed
+  return n % 1 === 0 ? `${n} Checks` : `${n.toFixed(2)} Checks`
 }
 
 export function formatKsh(ksh) {
-  return `KSh ${Number(ksh || 0).toLocaleString('en-KE', { maximumFractionDigits: 0 })}`
+  return `KSh ${Number(ksh ?? 0).toLocaleString('en-KE', { maximumFractionDigits: 0 })}`
 }
 
-// Both, for places where showing the real-money equivalent avoids confusion
-export function formatBoth(checks) {
-  return `${formatChecks(checks)} · ${formatKsh(checksToKsh(checks))}`
+export function formatChecksAndKsh(checks) {
+  return `${formatChecks(checks)} (${formatKsh(checksToKsh(checks))})`
 }
 
-export const ORDER_STATUS = {
-  held: {
-    label: 'Payment held',
-    color: '#92400E',
-    bg: '#FEF3C7',
-    buyerHint: 'Your Checks are safely held. The seller has been notified.',
-    sellerHint: 'Payment is held in escrow. Ship the item, then mark it as sent.',
-  },
-  shipped: {
-    label: 'Shipped',
-    color: '#1E40AF',
-    bg: '#DBEAFE',
-    buyerHint: 'On its way. Confirm once you have received it.',
-    sellerHint: 'Waiting on the buyer to confirm they received it.',
-  },
-  completed: {
-    label: 'Completed',
-    color: '#065F46',
-    bg: '#D1FAE5',
-    buyerHint: 'Done. The seller has been paid.',
-    sellerHint: 'Paid — the Checks are in your balance.',
-  },
-  cancelled: {
-    label: 'Cancelled',
-    color: '#6B7280',
-    bg: '#F3F4F6',
-    buyerHint: 'Cancelled before shipping. Your Checks were returned.',
-    sellerHint: 'The buyer cancelled before you shipped.',
-  },
-  refunded: {
-    label: 'Refunded',
-    color: '#991B1B',
-    bg: '#FEE2E2',
-    buyerHint: 'An admin refunded this order. Your Checks were returned.',
-    sellerHint: 'An admin refunded this order to the buyer.',
-  },
-  admin_review: {
-    label: 'Under review',
-    color: '#7C2D12',
-    bg: '#FFEDD5',
-    buyerHint: 'A BizCheck admin is reviewing this order. Your Checks stay held meanwhile.',
-    sellerHint: 'A BizCheck admin is reviewing this order.',
-  },
+// ── Fee calculators ───────────────────────────────────────────────────────────
+// All fees in Checks, rounded to 2dp.
+
+export const FEES = {
+  BUYER_COMMISSION:     0.02,   // 2% added to buyer's checkout total
+  SELLER_COMMISSION:    0.02,   // 2% deducted from seller's payout
+  WITHDRAWAL:           0.02,   // 2% on withdrawal amount
+  TRANSFER_USER_USER:   0.01,   // 1% on user→user check transfer
+  TRANSFER_USER_BIZ:    0.02,   // 2% on user→business transfer (not a purchase)
 }
 
-export function statusInfo(status) {
-  return ORDER_STATUS[status] || { label: status, color: '#6B7280', bg: '#F3F4F6' }
+export const SUBSCRIPTION = {
+  USER_WEEKLY_CHECKS:     1,    // 1 Check/week
+  BUSINESS_MONTHLY_CHECKS: 3,  // 3 Checks/month
+  LISTING_FEE_CHECKS:    2.27, // one-time listing fee
+  TRIAL_DAYS:             7,   // free trial for both users and businesses
 }
 
-// Which of the three release keys are still outstanding
-export function pendingKeys(order) {
-  const missing = []
-  if (!order.buyer_confirmed_at) missing.push('buyer')
-  if (!order.seller_confirmed_at) missing.push('seller')
-  if (!order.admin_confirmed_at) missing.push('admin')
-  return missing
+export function buyerTotal(productPriceChecks) {
+  const fee = Math.round(productPriceChecks * FEES.BUYER_COMMISSION * 100) / 100
+  return { subtotal: productPriceChecks, fee, total: productPriceChecks + fee }
 }
 
-// Deposit swap fee (shown as a separate line at checkout, doesn't reduce Checks received)
-export const SWAP_FEE_PERCENT = 3.5
-export function swapFeeKsh(amountKsh) {
-  return Math.round(amountKsh * SWAP_FEE_PERCENT) / 100
+export function sellerPayout(productPriceChecks) {
+  const commission = Math.round(productPriceChecks * FEES.SELLER_COMMISSION * 100) / 100
+  return { gross: productPriceChecks, commission, net: productPriceChecks - commission }
+}
+
+export function withdrawalNet(checksRequested) {
+  const fee = Math.round(checksRequested * FEES.WITHDRAWAL * 100) / 100
+  return { requested: checksRequested, fee, net: checksRequested - fee }
+}
+
+export function transferFee(checks, type = 'user_user') {
+  const rate = type === 'user_biz' ? FEES.TRANSFER_USER_BIZ : FEES.TRANSFER_USER_USER
+  const fee = Math.round(checks * rate * 100) / 100
+  return { amount: checks, fee, total: checks + fee }
 }
