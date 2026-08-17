@@ -3,6 +3,12 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import PublicStorePage from './pages/PublicStorePage'
+import ErrorBoundary from './pages/ErrorBoundary'
+import { installGlobalErrorHandlers } from './errors'
+
+// Catch unhandled JS errors and promise rejections, report them to the
+// admin queue so production crashes are never invisible.
+installGlobalErrorHandlers()
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -16,16 +22,20 @@ const storeMatch = window.location.pathname.match(/^\/store\/([^/]+)$/)
 
 if (storeMatch) {
   // QR code / direct storefront link — render ONLY the public store page.
-  // Skips App entirely, so no auth check, no Supabase session logic runs
+  // Skips App entirely so no auth check, no Supabase session logic runs
   // for someone who just scanned a code and isn't logging in.
   createRoot(document.getElementById('root')).render(
-    <PublicStorePage businessId={storeMatch[1]} />
+    <ErrorBoundary context="public-store">
+      <PublicStorePage businessId={storeMatch[1]} />
+    </ErrorBoundary>
   )
 } else {
   // Normal app load
   createRoot(document.getElementById('root')).render(
     <StrictMode>
-      <App />
+      <ErrorBoundary context="app-root">
+        <App />
+      </ErrorBoundary>
     </StrictMode>
   )
 }
