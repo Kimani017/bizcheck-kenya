@@ -26,8 +26,6 @@ export default function SubmitBusiness({ currentUser, onDone }) {
     fb_handle:      '',
     tiktok_handle:  '',
     instagram_handle: '',
-    twitter_handle: '',
-    website:        '',
     bizcode:        '',
   })
 
@@ -81,8 +79,6 @@ export default function SubmitBusiness({ currentUser, onDone }) {
         fb_handle:        form.fb_handle.trim()        || null,
         tiktok_handle:    form.tiktok_handle.trim()    || null,
         instagram_handle: form.instagram_handle.trim() || null,
-        twitter_handle:   form.twitter_handle.trim()   || null,
-        website:          form.website.trim()          || null,
         bizcode:          form.bizcode.trim()          || null,
         logo_url,
         status:              'pending',
@@ -241,8 +237,6 @@ export default function SubmitBusiness({ currentUser, onDone }) {
           <Field label="Facebook page"><input value={form.fb_handle}        onChange={set('fb_handle')}        placeholder="@YourPage"  style={inputStyle} /></Field>
           <Field label="TikTok"><input          value={form.tiktok_handle}    onChange={set('tiktok_handle')}    placeholder="@handle"    style={inputStyle} /></Field>
           <Field label="Instagram"><input       value={form.instagram_handle} onChange={set('instagram_handle')} placeholder="@handle"    style={inputStyle} /></Field>
-          <Field label="Twitter / X"><input     value={form.twitter_handle}   onChange={set('twitter_handle')}   placeholder="@handle"    style={inputStyle} /></Field>
-          <Field label="Website"><input         value={form.website}          onChange={set('website')}          placeholder="https://..."style={inputStyle} /></Field>
         </>
       )}
 
