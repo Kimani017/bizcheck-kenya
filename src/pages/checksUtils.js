@@ -71,3 +71,15 @@ export function transferFee(checks, type = 'user_user') {
   const fee = Math.round(checks * rate * 100) / 100
   return { amount: checks, fee, total: checks + fee }
 }
+
+// Legacy exports kept for MyOrdersPage and BusinessOrdersTab compatibility
+export const statusInfo = {
+  held:         { label: 'Awaiting confirmation', color: '#EF9F27' },
+  shipped:      { label: 'Shipped',               color: '#3B82F6' },
+  admin_review: { label: 'Under review',          color: '#8B5CF6' },
+  completed:    { label: 'Completed',             color: '#1D9E75' },
+  cancelled:    { label: 'Cancelled',             color: '#E24B4A' },
+  refunded:     { label: 'Refunded',              color: '#6B7280' },
+}
+
+export const pendingKeys = ['held', 'shipped', 'admin_review']

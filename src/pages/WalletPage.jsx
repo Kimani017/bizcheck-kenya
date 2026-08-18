@@ -1,40 +1,22 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import RubiksLoader from './RubiksLoader'
-import Icon from './Icon'
 import { formatChecks, formatKsh, checksToKsh, kshToChecks, KSH_PER_CHECK } from './checksUtils'
+import { cache, TTL } from '../cache'
 
 const GREEN = '#1D9E75'
 const GREEN_DARK = '#0F6E56'
 
-export default function WalletPage({ currentUser, onBack }) {
-  const [wallet, setWallet] = useState(null)
-  const [entries, setEntries] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
-  const [mode, setMode] = useState(null) // 'deposit' | 'withdraw'
+// ── Floating deposit/withdraw form ───────────────────────────────────────────
+// Exported so BuyProductModal can open it directly without navigating away.
+export function WalletActionModal({ mode, currentUser, onClose, onDone }) {
   const [amountKsh, setAmountKsh] = useState('')
   const [phone, setPhone] = useState('')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
 
-  useEffect(() => { load() }, [currentUser?.id])
-
-  async function load() {
-    if (!currentUser?.id) return
-    setLoading(true)
-    setError('')
-
-    const [{ data: w }, { data: e }] = await Promise.all([
-      supabase.from('wallets').select('*').eq('user_id', currentUser.id).maybeSingle(),
-      supabase.from('wallet_entries').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(50),
-    ])
-
-    // A wallet row is created on first use — treat "none yet" as zero
-    setWallet(w || { balance: 0, held: 0 })
-    setEntries(e || [])
-    setLoading(false)
-  }
+  if (!mode) return null
 
   async function handleDeposit() {
     const ksh = Number(amountKsh)
@@ -46,7 +28,6 @@ export default function WalletPage({ currentUser, onBack }) {
 
     setBusy(true)
     setError('')
-    setNotice('')
     try {
       const { data, error: fnError } = await supabase.functions.invoke('initiate-deposit', {
         body: { amount_ksh: ksh, phone: phone.trim() },
@@ -58,10 +39,12 @@ export default function WalletPage({ currentUser, onBack }) {
       }
       if (data?.error) throw new Error(data.error)
 
-      setNotice('Check your phone and approve the payment prompt. Your Checks appear here once the payment confirms.')
+      // Invalidate wallet cache so balance refreshes on next load
+      cache.invalidate(`wallet:${currentUser?.id}`)
+
+      setNotice('Check your phone and approve the M-Pesa prompt. Your Checks appear once payment confirms.')
       setAmountKsh('')
-      setMode(null)
-      setTimeout(load, 4000)
+      setTimeout(() => { onDone?.(); onClose?.() }, 3000)
     } catch (err) {
       setError('Deposit failed: ' + (err?.message || 'Unknown error'))
     } finally {
@@ -73,12 +56,10 @@ export default function WalletPage({ currentUser, onBack }) {
     const ksh = Number(amountKsh)
     const checks = kshToChecks(ksh)
     if (!checks || checks <= 0) { setError('Enter a valid amount.'); return }
-    if (checks > Number(wallet?.balance || 0)) { setError('You do not have that many Checks available.'); return }
     if (!phone.trim()) { setError('Enter the phone number to receive the money.'); return }
 
     setBusy(true)
     setError('')
-    setNotice('')
     const { error: rpcError } = await supabase.rpc('request_withdrawal', {
       p_checks: checks,
       p_phone: phone.trim(),
@@ -87,10 +68,124 @@ export default function WalletPage({ currentUser, onBack }) {
 
     if (rpcError) { setError('Withdrawal failed: ' + rpcError.message); return }
 
+    cache.invalidate(`wallet:${currentUser?.id}`)
     setNotice('Withdrawal requested. It will be sent to your phone once processed.')
     setAmountKsh('')
-    setMode(null)
-    load()
+    setTimeout(() => { onDone?.(); onClose?.() }, 3000)
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 70 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: 'var(--surface)', borderRadius: '20px 20px 0 0', padding: 24, maxWidth: 480, width: '100%', maxHeight: '80vh', overflowY: 'auto', textAlign: 'left' }}
+      >
+        <div style={{ width: 40, height: 4, background: 'var(--border)', borderRadius: 999, margin: '0 auto 18px' }} />
+
+        <h3 style={{ marginBottom: 16 }}>
+          {mode === 'deposit' ? '💰 Deposit Checks' : '📤 Withdraw to M-Pesa'}
+        </h3>
+
+        {error && (
+          <div style={{ background: '#FCEBEB', border: '1px solid #F7C1C1', color: '#A32D2D', borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 13 }}>
+            {error}
+          </div>
+        )}
+        {notice && (
+          <div style={{ background: '#EAF8F3', border: '1px solid #BEE9DA', color: GREEN_DARK, borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 13 }}>
+            {notice}
+          </div>
+        )}
+
+        <label style={labelStyle}>Amount in KSh</label>
+        <input
+          type="number"
+          inputMode="numeric"
+          placeholder="e.g. 500"
+          value={amountKsh}
+          onChange={(e) => setAmountKsh(e.target.value)}
+          style={inputStyle}
+          autoFocus
+        />
+        {Number(amountKsh) > 0 && (
+          <p className="muted" style={{ fontSize: 12.5, marginTop: -8, marginBottom: 12 }}>
+            = {formatChecks(kshToChecks(Number(amountKsh)))}
+          </p>
+        )}
+
+        <label style={labelStyle}>
+          {mode === 'deposit' ? 'Pay from this M-Pesa number' : 'Send to this M-Pesa number'}
+        </label>
+        <input
+          type="tel"
+          placeholder="07XX XXX XXX"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          style={inputStyle}
+        />
+
+        <button
+          onClick={mode === 'deposit' ? handleDeposit : handleWithdraw}
+          disabled={busy}
+          style={{ marginTop: 8, width: '100%', background: GREEN, color: '#fff', border: 'none', borderRadius: 12, padding: '13px', fontSize: 14, fontWeight: 700, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1 }}
+        >
+          {busy ? 'Please wait…' : mode === 'deposit' ? 'Continue to M-Pesa payment' : 'Request withdrawal'}
+        </button>
+
+        <button
+          onClick={onClose}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '12px', marginTop: 6, fontSize: 13.5, color: 'var(--text-muted)', cursor: 'pointer' }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Main WalletPage ───────────────────────────────────────────────────────────
+export default function WalletPage({ currentUser, onBack }) {
+  const [wallet, setWallet] = useState(null)
+  const [entries, setEntries] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [actionMode, setActionMode] = useState(null) // 'deposit' | 'withdraw'
+
+  useEffect(() => { load() }, [currentUser?.id])
+
+  async function load(forceRefresh = false) {
+    if (!currentUser?.id) return
+    setLoading(true)
+    setError('')
+
+    if (forceRefresh) {
+      cache.invalidate(`wallet:${currentUser.id}`)
+      cache.invalidate(`wallet_entries:${currentUser.id}`)
+    }
+
+    const [w, e] = await Promise.all([
+      cache.get(
+        `wallet:${currentUser.id}`,
+        () => supabase.from('wallets').select('*').eq('user_id', currentUser.id)
+               .maybeSingle().then(r => r.data || { balance: 0, held: 0 }),
+        { ttl: TTL.WALLET }
+      ),
+      cache.get(
+        `wallet_entries:${currentUser.id}`,
+        () => supabase.from('wallet_entries').select('*').eq('user_id', currentUser.id)
+               .order('created_at', { ascending: false }).limit(50)
+               .then(r => r.data || []),
+        { ttl: TTL.WALLET }
+      ),
+    ])
+
+    setWallet(w)
+    setEntries(e)
+    setLoading(false)
   }
 
   if (loading) return <RubiksLoader label="Loading your wallet…" />
@@ -111,8 +206,7 @@ export default function WalletPage({ currentUser, onBack }) {
       <div style={{ background: `linear-gradient(140deg, ${GREEN_DARK}, ${GREEN})`, borderRadius: 18, padding: 22, color: '#fff', marginBottom: 16 }}>
         <p style={{ fontSize: 12, opacity: 0.85, textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600 }}>Available</p>
         <p style={{ fontSize: 36, fontWeight: 800, lineHeight: 1.1 }}>{formatChecks(balance)}</p>
-        <p style={{ fontSize: 13, opacity: 0.9, marginBottom: 14 }}>{formatKsh(checksToKsh(balance))}</p>
-
+        <p style={{ fontSize: 13, opacity: 0.9, marginBottom: held > 0 ? 14 : 0 }}>{formatKsh(checksToKsh(balance))}</p>
         {held > 0 && (
           <div style={{ background: 'rgba(255,255,255,0.16)', borderRadius: 10, padding: '8px 12px', fontSize: 12.5 }}>
             🔒 {formatChecks(held)} held in open orders
@@ -122,13 +216,13 @@ export default function WalletPage({ currentUser, onBack }) {
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
         <button
-          onClick={() => { setMode(mode === 'deposit' ? null : 'deposit'); setError(''); setNotice('') }}
+          onClick={() => setActionMode('deposit')}
           style={{ flex: 1, background: GREEN, color: '#fff', border: 'none', borderRadius: 12, padding: '12px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
         >
           Deposit
         </button>
         <button
-          onClick={() => { setMode(mode === 'withdraw' ? null : 'withdraw'); setError(''); setNotice('') }}
+          onClick={() => setActionMode('withdraw')}
           style={{ flex: 1, background: 'none', border: '1px solid var(--border)', borderRadius: 12, padding: '12px', fontSize: 14, fontWeight: 700, cursor: 'pointer', color: 'var(--text)' }}
         >
           Withdraw
@@ -146,50 +240,17 @@ export default function WalletPage({ currentUser, onBack }) {
         </div>
       )}
 
-      {mode && (
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-          <h4 style={{ marginBottom: 12 }}>{mode === 'deposit' ? 'Deposit to your wallet' : 'Withdraw to M-Pesa'}</h4>
-
-          <label style={{ fontSize: 12.5, color: 'var(--text-muted)', display: 'block', marginBottom: 5, fontWeight: 600 }}>
-            Amount in KSh
-          </label>
-          <input
-            type="number"
-            inputMode="numeric"
-            placeholder="e.g. 1200"
-            value={amountKsh}
-            onChange={(e) => setAmountKsh(e.target.value)}
-            style={inputStyle}
-          />
-          {Number(amountKsh) > 0 && (
-            <p className="muted" style={{ fontSize: 12.5, marginTop: 4, marginBottom: 12 }}>
-              = {formatChecks(kshToChecks(Number(amountKsh)))}
-            </p>
-          )}
-
-          <label style={{ fontSize: 12.5, color: 'var(--text-muted)', display: 'block', marginBottom: 5, marginTop: 10, fontWeight: 600 }}>
-            {mode === 'deposit' ? 'Pay from this number' : 'Send to this number'}
-          </label>
-          <input
-            type="tel"
-            placeholder="07XX XXX XXX"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            style={inputStyle}
-          />
-
-          <button
-            onClick={mode === 'deposit' ? handleDeposit : handleWithdraw}
-            disabled={busy}
-            style={{ marginTop: 14, width: '100%', background: GREEN, color: '#fff', border: 'none', borderRadius: 12, padding: '12px', fontSize: 14, fontWeight: 700, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1 }}
-          >
-            {busy ? 'Please wait…' : mode === 'deposit' ? 'Continue to payment' : 'Request withdrawal'}
-          </button>
-        </div>
-      )}
-
       {/* LEDGER */}
-      <h4 style={{ marginBottom: 10 }}>Transaction history</h4>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <h4>Transaction history</h4>
+        <button
+          onClick={() => load(true)}
+          style={{ background: 'none', border: 'none', fontSize: 12, color: GREEN, cursor: 'pointer', fontWeight: 600 }}
+        >
+          Refresh
+        </button>
+      </div>
+
       {entries.length === 0 ? (
         <p className="muted" style={{ fontSize: 13 }}>Nothing here yet.</p>
       ) : (
@@ -216,12 +277,21 @@ export default function WalletPage({ currentUser, onBack }) {
           })}
         </div>
       )}
+
+      {/* Floating action modal */}
+      <WalletActionModal
+        mode={actionMode}
+        currentUser={currentUser}
+        onClose={() => setActionMode(null)}
+        onDone={() => load(true)}
+      />
     </div>
   )
 }
 
+const labelStyle = { fontSize: 12.5, color: 'var(--text-muted)', display: 'block', marginBottom: 5, fontWeight: 600 }
 const inputStyle = {
-  width: '100%', padding: '11px 14px', borderRadius: 10,
+  width: '100%', padding: '11px 14px', borderRadius: 10, marginBottom: 12,
   border: '1px solid var(--border)', fontSize: 14,
   background: 'var(--surface)', color: 'var(--text)',
 }
@@ -235,6 +305,8 @@ function labelForKind(kind) {
     withdrawal_request: 'Withdrawal',
     withdrawal_failed: 'Withdrawal returned',
     admin_adjustment: 'Adjustment by admin',
+    credit_purchase: 'Credit purchase',
+    subscription_payment: 'Subscription',
   }
   return map[kind] || kind
 }
