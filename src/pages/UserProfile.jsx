@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { SkeletonProfile } from './Skeleton'
-import BusinessApplicationForm from './BusinessApplicationForm'
+import SubmitBusiness from './SubmitBusiness'
 import { IdentityLine } from './Identity'
 
 const TABS = [
@@ -280,7 +280,7 @@ export default function UserProfile({ profileUserId, currentUser, isAdmin, onBac
                   </div>
 
                   {showBusinessForm && (
-                    <BusinessApplicationForm
+                    <SubmitBusiness
                       currentUser={currentUser}
                       onDone={() => { setShowBusinessForm(false); loadAll(); alert('✓ Application submitted! Our team will review your documents and verify your business within 24-48hrs.') }}
                       onCancel={() => setShowBusinessForm(false)}
