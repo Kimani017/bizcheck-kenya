@@ -113,10 +113,10 @@ export default function SubmitBusiness({ currentUser, onDone }) {
         <div style={{ background: 'var(--hover-bg)', borderRadius: 14, padding: 18, marginBottom: 24, textAlign: 'left' }}>
           <p style={{ fontWeight: 700, marginBottom: 10, fontSize: 14 }}>What happens next:</p>
           {[
-            ['🔍', 'Auto-review checks your business details (within 30 min)'],
-            ['✅', 'If approved, you pay the 2.27 Check listing fee'],
+            ['✅', 'If approved, you pay the 2.27 Checks listing fee'],
             ['🚀', '7-day free trial starts — no commission, full access'],
-            ['📅', 'After trial: 3 Checks/month + 2% commission on sales'],
+            ['📅', 'After trial: 3 Checks/month],
+            ]      
           ].map(([icon, text]) => (
             <div key={text} style={{ display: 'flex', gap: 10, marginBottom: 10, fontSize: 13 }}>
               <span>{icon}</span>
