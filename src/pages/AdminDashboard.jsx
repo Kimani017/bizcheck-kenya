@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import { SkeletonList } from './Skeleton'
 import UserActivity from './UserActivity'
 import { formatChecks, formatKsh, checksToKsh } from './checksUtils'
+import BusinessPerformancePanel from './BusinessPerformancePanel'
 
 const FLAG_THRESHOLD = 6
 const SCAM_THRESHOLD = 10
@@ -243,7 +244,7 @@ function AdminEmailComposer() {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
+export default function AdminDashboard({ onSelectUser }) {
   const [mainTab, setMainTab] = useState('businesses')
   const [chatThreads, setChatThreads] = useState([])
   const [activeThreadUserId, setActiveThreadUserId] = useState(null)
@@ -277,6 +278,9 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
   const [withdrawalFilter, setWithdrawalFilter] = useState('pending')
   const [escrowOrders, setEscrowOrders] = useState([])
   const [moneyLoaded, setMoneyLoaded] = useState(false)
+
+  // Business performance panel
+  const [selectedBizForPanel, setSelectedBizForPanel] = useState(null)
 
   useEffect(() => { checkAdmin() }, [])
 
@@ -774,7 +778,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {(bizSubTab === 'verified' ? verifiedBiz : bizSubTab === 'flagged' ? flaggedBiz : scamBiz).map((b) => (
-              <BusinessAdminRow key={b.id} business={b} onSetStatus={setBusinessStatus} onBan={banBusiness} onSendBizcode={sendBizcode} thresholds={{ FLAG_THRESHOLD, SCAM_THRESHOLD }} onSelectBusiness={onSelectBusiness} onSelectUser={onSelectUser} />
+              <BusinessAdminRow key={b.id} business={b} onSetStatus={setBusinessStatus} onBan={banBusiness} onSendBizcode={sendBizcode} thresholds={{ FLAG_THRESHOLD, SCAM_THRESHOLD }} onOpenPanel={(biz) => setSelectedBizForPanel(biz)} onSelectUser={onSelectUser} />
             ))}
             {(bizSubTab === 'verified' ? verifiedBiz : bizSubTab === 'flagged' ? flaggedBiz : scamBiz).length === 0 && (
               <p className="muted">No businesses in this category.</p>
@@ -836,7 +840,7 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
                 return (
                   <div className="admin-row" key={rb.businessId} style={{ flexWrap: 'wrap' }}>
                     <div>
-                      <button onClick={() => { const full = getFullBusiness(rb.businessId); if (full) onSelectBusiness?.(full) }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+                      <button onClick={() => { const full = getFullBusiness(rb.businessId); if (full) setSelectedBizForPanel(full) }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
                         <strong style={{ color: '#1D9E75', textDecoration: 'underline' }}>{biz?.name || 'Unknown business'}</strong>
                       </button>
                       <span className={`badge ${biz?.status === 'verified' ? 'badge-verified' : biz?.status === 'scam' ? 'badge-danger' : 'badge-pending'}`} style={{ marginLeft: 8 }}>{biz?.status}</span>
@@ -1188,17 +1192,27 @@ export default function AdminDashboard({ onSelectBusiness, onSelectUser }) {
           </div>
         </div>
       )}
+
+      {/* ── Business performance panel ────────────────────────────────────── */}
+      {selectedBizForPanel && (
+        <BusinessPerformancePanel
+          business={selectedBizForPanel}
+          currentAdminId={currentAdminId}
+          onClose={() => setSelectedBizForPanel(null)}
+          onRefresh={loadAll}
+        />
+      )}
     </div>
   )
 }
 
-function BusinessAdminRow({ business: b, onSetStatus, onBan, onSendBizcode, thresholds, onSelectBusiness, onSelectUser }) {
+function BusinessAdminRow({ business: b, onSetStatus, onBan, onSendBizcode, thresholds, onOpenPanel, onSelectUser }) {
   const needsFlagReview = b.unique_reporter_count >= thresholds.FLAG_THRESHOLD && b.status === 'verified'
   const needsScamReview = b.unique_reporter_count >= thresholds.SCAM_THRESHOLD && b.status !== 'scam'
   return (
     <div className="admin-row" style={{ flexWrap: 'wrap' }}>
       <div>
-        <button onClick={() => onSelectBusiness?.(b)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+        <button onClick={() => onOpenPanel?.(b)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
           <strong style={{ color: '#1D9E75', textDecoration: 'underline' }}>{b.name}</strong>
         </button>
         {b.admin_reviewed && (
