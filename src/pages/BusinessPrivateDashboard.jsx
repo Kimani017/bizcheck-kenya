@@ -9,6 +9,7 @@ import BusinessOrdersTab from './BusinessOrdersTab'
 import Icon from './Icon'
 import RubiksLoader from './RubiksLoader'
 import { chargeBusinessCredits } from './CreditGate'
+import ListingFeeBanner from './ListingFeeBanner'
 
 function StarDisplay({ rating, size = 14 }) {
   return (
@@ -153,6 +154,11 @@ export default function BusinessPrivateDashboard({ business, onBack, currentUser
   return (
     <div className="section" style={{ maxWidth: 680 }}>
       <button className="link-btn" onClick={onBack}>← Back</button>
+      <ListingFeeBanner
+      business={business}
+      currentUser={currentUser}
+      onStatusChange={(updated) => setSelectedBusiness?.(updated)}
+      />
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
