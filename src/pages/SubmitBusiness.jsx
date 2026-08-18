@@ -115,8 +115,8 @@ export default function SubmitBusiness({ currentUser, onDone }) {
           {[
             ['✅', 'If approved, you pay the 2.27 Checks listing fee'],
             ['🚀', '7-day free trial starts — no commission, full access'],
-            ['📅', 'After trial: 3 Checks/month],
-            ]      
+            ['📅', 'After trial: 3 Checks/month'],
+            
           ].map(([icon, text]) => (
             <div key={text} style={{ display: 'flex', gap: 10, marginBottom: 10, fontSize: 13 }}>
               <span>{icon}</span>
