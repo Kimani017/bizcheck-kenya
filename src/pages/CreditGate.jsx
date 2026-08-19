@@ -3,7 +3,7 @@ export async function chargeUserCredits(action, amount) {
   return { success: true, insufficientCredits: false }
 }
 
-export async function chargeUserCredits(action, amount) {
+export async function chargeBusinessCredits(businessId, action, amount) {
   // Launch mode — payments disabled. Everything is free.
   return { success: true, insufficientCredits: false }
 }
