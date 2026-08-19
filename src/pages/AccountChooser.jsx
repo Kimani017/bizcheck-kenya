@@ -35,7 +35,7 @@ export default function AccountChooser({ businesses, currentUser, onChoosePerson
 
     const { data: sessionData } = await supabase.auth.getSession()
     try {
-      await fetch('${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-login-otp', {
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-login-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionData.session.access_token}` },
         body: JSON.stringify({ email: currentUser.email, name: selectedBiz.owner_name, code: otpCode }),
