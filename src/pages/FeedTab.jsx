@@ -90,8 +90,6 @@ export default function FeedTab({ onSelectBusiness, currentUser }) {
 
       // Impressions — feeds the fatigue logic in the ranking algorithm.
       tryQuery(supabase.rpc('record_impressions', { p_post_ids: ids }), 'feed:impressions')
-    }
-
     } catch (err) {
       // Show the user something honest instead of a false "No posts yet".
       setLoadError(handleError(err, 'feed:loadPage'))
