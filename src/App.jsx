@@ -283,7 +283,7 @@ function App() {
   }
 
   async function checkPendingApplication(userId) {
-    const { data } = await supabase.from('admin_applications').select('status').eq('user_id', userId).single()
+   const { data } = await supabase.from('admin_applications').select('status').eq('user_id', userId).maybeSingle()
     if (data && (data.status === 'invited' || data.status === 'approved')) {
       setPendingApplication(data.status)
     } else {
