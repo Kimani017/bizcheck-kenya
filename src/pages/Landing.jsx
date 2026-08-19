@@ -119,8 +119,8 @@ function TrustNetworkBackground() {
     let raf = null
     let running = true
 
-    const NODE_COLOR = '29,158,117'   // brand green, rgb
-    const LINK_DIST = 150
+    const NODE_COLOR = '52,211,153'   // brighter brand green, rgb — tuned for contrast over dark hero
+    const LINK_DIST = 160
 
     function resize() {
       dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -157,8 +157,8 @@ function TrustNetworkBackground() {
           const dx = a.x - b.x, dy = a.y - b.y
           const dist = Math.sqrt(dx * dx + dy * dy)
           if (dist < LINK_DIST) {
-            ctx.strokeStyle = `rgba(${NODE_COLOR},${0.10 * (1 - dist / LINK_DIST)})`
-            ctx.lineWidth = 1
+            ctx.strokeStyle = `rgba(${NODE_COLOR},${0.32 * (1 - dist / LINK_DIST)})`
+            ctx.lineWidth = 1.1
             ctx.beginPath()
             ctx.moveTo(a.x, a.y)
             ctx.lineTo(b.x, b.y)
@@ -170,7 +170,7 @@ function TrustNetworkBackground() {
       for (const n of nodes) {
         ctx.beginPath()
         ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(${NODE_COLOR},0.35)`
+        ctx.fillStyle = `rgba(${NODE_COLOR},0.75)`
         ctx.fill()
       }
 
@@ -206,6 +206,37 @@ function TrustNetworkBackground() {
   }, [])
 
   return <canvas ref={canvasRef} className="bc-hero-canvas" aria-hidden="true" />
+}
+
+// ── Background video layer ────────────────────────────────────────────────────
+// Looks for /hero-bg.webm and /hero-bg.mp4 in the public folder. If neither
+// loads (files not added yet, or the browser can't play them), the video is
+// simply hidden and the dark scrim + node network carry the hero on their own —
+// so this is safe to ship before a video file exists.
+function BackgroundVideo() {
+  const videoRef = useRef(null)
+  const [ready, setReady] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  if (failed) return null
+
+  return (
+    <video
+      ref={videoRef}
+      className={`bc-hero-video ${ready ? 'bc-video-ready' : ''}`}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="auto"
+      onCanPlay={() => setReady(true)}
+      onError={() => setFailed(true)}
+      aria-hidden="true"
+    >
+      <source src="/hero-bg.webm" type="video/webm" />
+      <source src="/hero-bg.mp4" type="video/mp4" />
+    </video>
+  )
 }
 
 export default function Landing({ goToAuth }) {
@@ -315,9 +346,9 @@ export default function Landing({ goToAuth }) {
           position: sticky; top: 0; z-index: 40;
           display: flex; align-items: center; justify-content: space-between;
           padding: 16px 24px;
-          background: rgba(246,248,247,0.82);
+          background: rgba(6,26,20,0.55);
           backdrop-filter: blur(10px);
-          border-bottom: 1px solid var(--bc-border);
+          border-bottom: 1px solid rgba(255,255,255,0.08);
         }
         .bc-logo { display: flex; align-items: center; gap: 9px; }
         .bc-logo-mark {
@@ -326,9 +357,10 @@ export default function Landing({ goToAuth }) {
           display: flex; align-items: center; justify-content: center;
           flex-shrink: 0;
         }
-        .bc-logo-word { font-family: var(--bc-display); font-weight: 700; font-size: 16.5px; letter-spacing: -0.01em; }
+        .bc-logo-word { font-family: var(--bc-display); font-weight: 700; font-size: 16.5px; letter-spacing: -0.01em; color: #fff; }
         .bc-nav-actions { display: flex; align-items: center; gap: 18px; }
-        .bc-link { font-size: 14px; font-weight: 600; color: var(--bc-ink); text-decoration: none; background: none; border: none; cursor: pointer; }
+        .bc-link { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.85); text-decoration: none; background: none; border: none; cursor: pointer; }
+        .bc-link:hover { color: #fff; }
         .bc-btn {
           font-family: var(--bc-body); font-weight: 700; font-size: 14px;
           border-radius: 10px; border: none; cursor: pointer;
@@ -343,34 +375,56 @@ export default function Landing({ goToAuth }) {
         .bc-btn-lg { padding: 14px 26px; font-size: 15px; border-radius: 12px; }
 
         /* ── Hero ────────────────────────────────────────────────────────── */
-        .bc-hero { padding: 64px 24px 20px; text-align: center; position: relative; overflow: hidden; }
+        .bc-hero {
+          padding: 64px 24px 20px; text-align: center;
+          position: relative; overflow: hidden;
+          background: var(--bc-brand-deep);
+        }
+        .bc-hero-video {
+          position: absolute; inset: 0; width: 100%; height: 100%;
+          object-fit: cover; z-index: 0; pointer-events: none;
+          opacity: 0; transition: opacity 900ms ease;
+          filter: blur(7px) saturate(0.75) brightness(0.55);
+          transform: scale(1.06); /* hides blur edge softening */
+        }
+        .bc-hero-video.bc-video-ready { opacity: 1; }
+        .bc-hero-scrim {
+          position: absolute; inset: 0; z-index: 1; pointer-events: none;
+          background:
+            radial-gradient(ellipse 80% 55% at 50% 0%, rgba(10,76,59,0.15), transparent 60%),
+            linear-gradient(180deg, rgba(6,26,20,0.78) 0%, rgba(6,26,20,0.88) 55%, var(--bc-brand-deep) 100%);
+        }
         .bc-hero-canvas {
           position: absolute; inset: 0; width: 100%; height: 100%;
-          z-index: 0; pointer-events: none;
-          mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 40%, transparent 85%);
-          -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 40%, transparent 85%);
+          z-index: 2; pointer-events: none;
+          mask-image: radial-gradient(ellipse 85% 70% at 50% 25%, #000 45%, transparent 92%);
+          -webkit-mask-image: radial-gradient(ellipse 85% 70% at 50% 25%, #000 45%, transparent 92%);
         }
-        .bc-hero > .bc-container { position: relative; z-index: 1; }
+        .bc-hero > .bc-container { position: relative; z-index: 3; }
         .bc-eyebrow {
           display: inline-flex; align-items: center; gap: 7px;
           font-family: var(--bc-mono); font-size: 12px; font-weight: 500;
-          color: var(--bc-brand-deep); background: var(--bc-brand-tint);
-          border: 1px solid #CFEDE0;
+          color: #BFF3DC; background: rgba(255,255,255,0.08);
+          border: 1px solid rgba(191,243,220,0.28);
           padding: 6px 13px; border-radius: 99px; margin-bottom: 22px;
         }
-        .bc-eyebrow-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--bc-brand); }
+        .bc-eyebrow-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ADE9A; box-shadow: 0 0 8px rgba(74,222,154,0.9); }
         .bc-hero h1 {
           font-size: clamp(34px, 6vw, 58px);
           font-weight: 700; line-height: 1.06;
           max-width: 780px; margin: 0 auto;
+          color: #fff;
+          text-shadow: 0 2px 24px rgba(0,0,0,0.35);
         }
-        .bc-hero h1 em { font-style: normal; color: var(--bc-brand-dark); }
+        .bc-hero h1 em { font-style: normal; color: #6EE7B7; }
         .bc-hero-sub {
           max-width: 540px; margin: 22px auto 0;
-          font-size: 17px; color: var(--bc-muted);
+          font-size: 17px; color: rgba(255,255,255,0.82);
         }
         .bc-hero-btns { display: flex; gap: 12px; justify-content: center; margin: 30px 0 12px; flex-wrap: wrap; }
-        .bc-hero-note { font-size: 13px; color: var(--bc-muted); font-family: var(--bc-mono); }
+        .bc-hero-note { font-size: 13px; color: rgba(255,255,255,0.55); font-family: var(--bc-mono); }
+        .bc-hero .bc-btn-ghost { background: rgba(255,255,255,0.06); border: 1.5px solid rgba(255,255,255,0.3); color: #fff; }
+        .bc-hero .bc-btn-ghost:hover { border-color: #6EE7B7; color: #6EE7B7; background: rgba(255,255,255,0.1); }
 
         /* ── Demo verification card ─────────────────────────────────────── */
         .bc-demo-wrap { max-width: 400px; margin: 48px auto 0; position: relative; }
@@ -517,6 +571,8 @@ export default function Landing({ goToAuth }) {
 
       {/* HERO */}
       <div className="bc-hero">
+        <BackgroundVideo />
+        <div className="bc-hero-scrim" />
         <TrustNetworkBackground />
         <div className="bc-container">
           <div className="bc-eyebrow">
