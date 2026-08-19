@@ -24,7 +24,7 @@ export default function LoginOtp({ currentUser, onVerified }) {
 
     const { data: sessionData } = await supabase.auth.getSession()
     try {
-      await fetch('https://ubjndgyukfhngytfabnw.supabase.co/functions/v1/send-login-otp', {
+      await fetch('${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-login-otp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

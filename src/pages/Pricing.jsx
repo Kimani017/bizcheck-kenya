@@ -26,7 +26,7 @@ export default function Pricing({ currentUser, businessMode, onBack }) {
     // 2. Ask the edge function to send the M-Pesa STK Push prompt
     const { data: sessionData } = await supabase.auth.getSession()
     try {
-      const res = await fetch('https://ubjndgyukfhngytfabnw.supabase.co/functions/v1/mpesa-stk-push', {
+      const res = await fetch('${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mpesa-stk-push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionData.session.access_token}` },
         body: JSON.stringify({

@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
         PartyA: phone,
         PartyB: SHORTCODE,
         PhoneNumber: phone,
-        CallBackURL: 'https://ubjndgyukfhngytfabnw.supabase.co/functions/v1/mpesa-callback',
+        CallBackURL: '${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mpesa-callback',
         AccountReference: account_reference || 'BizCheck',
         TransactionDesc: description || 'BizCheck Kenya payment',
       }),
