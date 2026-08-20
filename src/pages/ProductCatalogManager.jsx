@@ -317,78 +317,24 @@ export default function ProductCatalogManager({ businessId }) {
     fetchPhotosFor(productId)
   }
 
-  async function handleSendToMarket(productId) {
-  setSendingFor(productId)
-  setError('')
-  try {
-    // 1. Get the product (need business_id and category for the post)
-    const { data: product, error: productError } = await supabase
-      .from('products')
-      .select('*, businesses(category)')
-      .eq('id', productId)
-      .single()
-    if (productError || !product) throw new Error('Product not found.')
-
-    // 2. Pick the most recent non-duplicate photo
-    const { data: photos, error: photosError } = await supabase
-      .from('product_photos')
-      .select('*')
-      .eq('product_id', productId)
-      .eq('is_duplicate', false)
-      .order('created_at', { ascending: false })
-      .limit(1)
-    if (photosError || !photos || photos.length === 0) {
-      throw new Error('No usable photo found for this product.')
-    }
-    const bestPhoto = photos[0]
-
-    // 3. Download the raw photo from the private product-photos bucket
-    const { data: fileBlob, error: downloadError } = await supabase.storage
-      .from('product-photos')
-      .download(bestPhoto.photo_url)
-    if (downloadError || !fileBlob) {
-      throw new Error('Could not load the product photo.')
-    }
-
-    // 4. Upload it as-is to the public market-photos bucket
-    const marketPhotoPath = `${product.business_id}/${productId}-${Date.now()}.jpg`
-    console.log('UPLOAD PATH:', marketPhotoPath)
-    console.log('PRODUCT BUSINESS ID:', product.business_id)
-    const { error: uploadError } = await supabase.storage
-      .from('market-photos')
-      .upload(marketPhotoPath, fileBlob, { contentType: 'image/jpeg', upsert: true })
-    if (uploadError) throw new Error('Could not upload photo to market: ' + uploadError.message)
-
-    const { data: publicUrlData } = supabase.storage
-      .from('market-photos')
-      .getPublicUrl(marketPhotoPath)
-
-    // 5. Caption falls back to product name + description (no AI call for now)
-    const caption = product.description
-      ? `${product.name} — ${product.description}`.slice(0, 140)
-      : product.name
-
-    // 6. Create the market post
-    const { error: insertError } = await supabase
-      .from('market_posts')
-      .insert({
-        product_id: productId,
-        business_id: product.business_id,
-        market_photo_url: publicUrlData.publicUrl,
-        caption,
-        category: product.businesses?.category ?? null,
-        status: 'pending_review',
+    async function handleSendToMarket(productId) {
+    setSendingFor(productId)
+    setError('')
+    try {
+      const { data, error } = await supabase.functions.invoke('send-to-market', {
+        body: { product_id: productId },
       })
-    if (insertError) throw new Error('Could not create market post: ' + insertError.message)
-
-    fetchMarketPosts()
-    fetchStats()
-  } catch (err) {
-    setError('Send to Market failed: ' + err.message)
-  } finally {
-    setSendingFor(null)
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      fetchMarketPosts()
+      fetchStats()
+    } catch (err) {
+      setError('Send to Market failed: ' + err.message)
+    } finally {
+      setSendingFor(null)
+    }
   }
-}
+
   async function saveCaption(postId) {
     const { error } = await supabase.from('market_posts').update({ caption: captionDrafts[postId] }).eq('id', postId)
     if (!error) fetchMarketPosts()
