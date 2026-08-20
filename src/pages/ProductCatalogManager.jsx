@@ -352,6 +352,8 @@ export default function ProductCatalogManager({ businessId }) {
 
     // 4. Upload it as-is to the public market-photos bucket
     const marketPhotoPath = `${product.business_id}/${productId}-${Date.now()}.jpg`
+    console.log('UPLOAD PATH:', marketPhotoPath)
+    console.log('PRODUCT BUSINESS ID:', product.business_id)
     const { error: uploadError } = await supabase.storage
       .from('market-photos')
       .upload(marketPhotoPath, fileBlob, { contentType: 'image/jpeg', upsert: true })
